@@ -30,7 +30,8 @@ export function LoggerScreen() {
   const { id } = useSessionQuery();
   return (
     <LongFastBlock id={id ?? "A"}>
-      <Logger />
+      {/* Keyed by session, so moving between ?id= values starts the logger afresh. */}
+      <Logger key={id} />
     </LongFastBlock>
   );
 }
@@ -262,24 +263,29 @@ function Logger() {
             disabled={saving}
             onClick={async () => {
               setSaving(true);
-              const { messages } = await saveWorkout(
-                {
-                  templateId: active.templateId,
-                  date: dateKey(active.startedAt, settings?.tz),
-                  variant: active.variant,
-                  startedAt: active.startedAt,
-                  endedAt: new Date().toISOString(),
-                  rpe,
-                  notes: notes || undefined,
-                  sets: active.sets,
-                },
-                active.blocks,
-                { progress: !active.deload },
-              );
-              await saveDraft(null);
-              if (settings?.notifications.sound) finishBeep();
-              toast(messages.length ? `Saved. ${messages.join(" · ")}` : "Session saved", "good");
-              router.push("/train");
+              try {
+                const { messages } = await saveWorkout(
+                  {
+                    templateId: active.templateId,
+                    date: dateKey(active.startedAt, settings?.tz),
+                    variant: active.variant,
+                    startedAt: active.startedAt,
+                    endedAt: new Date().toISOString(),
+                    rpe,
+                    notes: notes || undefined,
+                    sets: active.sets,
+                  },
+                  active.blocks,
+                  { progress: !active.deload },
+                );
+                await saveDraft(null);
+                if (settings?.notifications.sound) finishBeep();
+                toast(messages.length ? `Saved. ${messages.join(" · ")}` : "Session saved", "good");
+                router.push("/train");
+              } catch (e) {
+                toast((e as Error).message || "Couldn't save. Try again.", "bad");
+                setSaving(false);
+              }
             }}
           >
             Save session

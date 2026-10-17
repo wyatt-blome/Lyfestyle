@@ -123,8 +123,19 @@ export function takePendingSignIn(): boolean {
   return pendingSignInValid(at, Date.now());
 }
 
+/**
+ * Bumped whenever the cursors are reset or the session changes, so a sync that was already
+ * running can't write its now-stale cursors afterwards.
+ */
+let generation = 0;
+
+function writeCursor(key: string, value: string | null, gen: number): void {
+  if (gen === generation) write(key, value);
+}
+
 /** Forget where push and pull got to, so the next run sends everything and re-reads everything. */
 export function resetSyncCursors(): void {
+  generation++;
   write(S_PUSHED, null);
   write(S_PULLED, null);
 }
@@ -141,8 +152,10 @@ export function saveSession(s: AuthSession): void {
 
 export function signOut(): void {
   const s = read<AuthSession>(S_SESSION);
-  // Best effort: revoke the refresh token on the server too.
-  if (s && SYNC_AVAILABLE) void api("/auth/v1/logout", { method: "POST" }, s.accessToken).catch(() => undefined);
+  generation++;
+  // Best effort: revoke this device's refresh token on the server too (scope=local, so other
+  // devices stay signed in; Supabase's default would sign out everywhere).
+  if (s && SYNC_AVAILABLE) void api("/auth/v1/logout?scope=local", { method: "POST" }, s.accessToken).catch(() => undefined);
   write(S_SESSION, null);
   write(S_PUSHED, null);
   write(S_PULLED, null);
@@ -216,19 +229,20 @@ async function runSync(): Promise<void> {
   if (!s) return;
   busy = true;
   emit();
+  const gen = generation;
   try {
     const d = db();
     const pushedAt = read<string>(S_PUSHED);
     let sent = 0;
     let pull: { received: number; failed: number };
     if (pushedAt) {
-      sent = await push(d, s.accessToken, pushedAt);
-      pull = await pullAll(d, s.accessToken);
+      sent = await push(d, s.accessToken, pushedAt, gen);
+      pull = await pullAll(d, s.accessToken, gen);
     } else {
       // First run on this device (or after an import or wipe): pull first, so its fresh
       // defaults can't overwrite the real records from another device.
-      pull = await pullAll(d, s.accessToken);
-      sent = await push(d, s.accessToken, null);
+      pull = await pullAll(d, s.accessToken, gen);
+      sent = await push(d, s.accessToken, null, gen);
     }
     const msg = `Sent ${sent}, received ${pull.received}${pull.failed ? `, ${pull.failed} couldn't be saved on this device` : ""}`;
     write(S_LAST, { at: new Date().toISOString(), ok: pull.failed === 0, message: msg });
@@ -242,7 +256,7 @@ async function runSync(): Promise<void> {
 }
 
 /** Push everything changed here since `since` (all rows when null). Returns how many were sent. */
-async function push(d: FastMoveDB, token: string, since: string | null): Promise<number> {
+async function push(d: FastMoveDB, token: string, since: string | null, gen: number): Promise<number> {
   const startedAt = new Date().toISOString();
   const out: RemoteRow[] = [];
   for (const t of SYNC_TABLES) {
@@ -257,16 +271,16 @@ async function push(d: FastMoveDB, token: string, since: string | null): Promise
     );
     if (!res.ok) throw new Error(await errorText(res));
   }
-  write(S_PUSHED, startedAt);
+  writeCursor(S_PUSHED, startedAt, gen);
   return out.length;
 }
 
 /**
  * Pull everything the server accepted since the saved cursor; newer copies win. Pages continue
  * after the last row read (ties broken by tbl, id); the 5 s overlap only goes into the cursor
- * saved at the end. A row that can't be saved is counted and skipped, never aborting the run.
+ * saved at the end. A row that can't be saved is counted and skipped, never aborting the run, and is retried next run.
  */
-async function pullAll(d: FastMoveDB, token: string): Promise<{ received: number; failed: number }> {
+async function pullAll(d: FastMoveDB, token: string, gen: number): Promise<{ received: number; failed: number }> {
   const start = read<string>(S_PULLED);
   let page: PageCursor | null = null;
   let latest: string | null = null;
@@ -289,7 +303,9 @@ async function pullAll(d: FastMoveDB, token: string): Promise<{ received: number
     if (rows.length < PULL_PAGE || !next) break;
     page = next;
   }
-  write(S_PULLED, nextCursor(start, latest ? [{ synced_at: latest }] : []));
+  // If any row couldn't be saved here, keep the old cursor so the next run retries it (applying
+  // the others again is harmless: last write wins).
+  if (failed === 0) writeCursor(S_PULLED, nextCursor(start, latest ? [{ synced_at: latest }] : []), gen);
   return { received, failed };
 }
 

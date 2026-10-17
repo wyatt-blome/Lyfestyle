@@ -35,9 +35,15 @@ export async function getSettings(): Promise<Settings> {
   return fresh;
 }
 
-export async function saveSettings(changes: Partial<Settings>): Promise<void> {
+/**
+ * Save settings. `touch: false` keeps the stored updatedAt, for writes that must never win a
+ * sync over the real settings from another device: finishing onboarding on a new phone (its
+ * values are still defaults) and following this device's time zone.
+ */
+export async function saveSettings(changes: Partial<Settings>, opts: { touch?: boolean } = {}): Promise<void> {
   const current = await getSettings();
-  await db().settings.put({ ...current, ...changes, id: "settings", updatedAt: new Date().toISOString() });
+  const updatedAt = opts.touch === false ? current.updatedAt : new Date().toISOString();
+  await db().settings.put({ ...current, ...changes, id: "settings", updatedAt });
 }
 
 /** Live settings; undefined while loading. */

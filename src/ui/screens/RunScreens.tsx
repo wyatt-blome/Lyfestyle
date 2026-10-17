@@ -350,36 +350,41 @@ function Summary({ active, onClose }: { active: ActiveRun; onClose: () => void }
         disabled={busy}
         onClick={async () => {
           setBusy(true);
-          const startedAt = new Date(active.run.startedAt).toISOString();
-          const log: Omit<WorkoutLog, "id" | "createdAt" | "updatedAt"> = {
-            templateId: t.id,
-            date: dateKey(active.run.startedAt, settings?.tz),
-            variant: active.variant,
-            startedAt,
-            endedAt: new Date(active.run.endedAt ?? Date.now()).toISOString(),
-            rpe: Number(rpe) || undefined,
-            notes: [early ? "Ended early." : "", notes].filter(Boolean).join(" ") || undefined,
-            sets: done.map((s, i) => ({ exerciseId: s.items[0]?.exerciseId ?? t.id, setIndex: i, seconds: s.durationSec ?? undefined, done: true })),
-            quick: active.kind === "quick" ? { rounds: Number(rounds) || 0, rungs: Number(rungs) || 0, extraReps: Number(extra) || 0 } : undefined,
-            hr: active.hr && active.hr.some(Boolean) ? { intervals: active.hr.filter(Boolean) } : undefined,
-          };
-          // Progression (D17): the 4×4 counts finished intervals, follow-alongs move the Big 3 only,
-          // Quick 20s progress by score. Planned = one item per counted segment, so "every set
-          // done" compares like with like; an early end simply finishes fewer of them.
-          const counts = (x: { hrEntry?: boolean; kind: string; items: { exerciseId: string }[] }) =>
-            x.kind === "work" && (active.kind === "4x4" ? !!x.hrEntry : BIG3_IDS.includes(x.items[0]?.exerciseId ?? ""));
-          const planned = [{ label: t.name, items: active.run.segments.filter(counts).map((x) => ({ ...x.items[0], sets: 1 })) }];
-          const progress = active.kind !== "quick" && !active.deload && !(active.kind === "4x4" && active.variant === "short");
-          const { messages } = await saveWorkout(log, planned, {
-            progress,
-            progressSets: (x) => !!done[x.setIndex] && counts(done[x.setIndex]),
-          });
-          await saveRun(null);
-          toast(messages.length ? `Saved. ${messages.join(" · ")}` : "Saved", "good");
-          onClose();
-          // Friday's Quick 20 is "20 + 5 min mobility": go straight to the short Daily 10.
-          const friday = weekdayOf(dateKey(Date.now(), settings?.tz)) === 5;
-          router.push(active.kind === "quick" && friday && !early ? "/train/follow?id=DAILY10&v=short" : "/train");
+          try {
+            const startedAt = new Date(active.run.startedAt).toISOString();
+            const log: Omit<WorkoutLog, "id" | "createdAt" | "updatedAt"> = {
+              templateId: t.id,
+              date: dateKey(active.run.startedAt, settings?.tz),
+              variant: active.variant,
+              startedAt,
+              endedAt: new Date(active.run.endedAt ?? Date.now()).toISOString(),
+              rpe: Number(rpe) || undefined,
+              notes: [early ? "Ended early." : "", notes].filter(Boolean).join(" ") || undefined,
+              sets: done.map((s, i) => ({ exerciseId: s.items[0]?.exerciseId ?? t.id, setIndex: i, seconds: s.durationSec ?? undefined, done: true })),
+              quick: active.kind === "quick" ? { rounds: Number(rounds) || 0, rungs: Number(rungs) || 0, extraReps: Number(extra) || 0 } : undefined,
+              hr: active.hr && active.hr.some(Boolean) ? { intervals: active.hr.filter(Boolean) } : undefined,
+            };
+            // Progression (D17): the 4×4 counts finished intervals, follow-alongs move the Big 3 only,
+            // Quick 20s progress by score. Planned = one item per counted segment, so "every set
+            // done" compares like with like; an early end simply finishes fewer of them.
+            const counts = (x: { hrEntry?: boolean; kind: string; items: { exerciseId: string }[] }) =>
+              x.kind === "work" && (active.kind === "4x4" ? !!x.hrEntry : BIG3_IDS.includes(x.items[0]?.exerciseId ?? ""));
+            const planned = [{ label: t.name, items: active.run.segments.filter(counts).map((x) => ({ ...x.items[0], sets: 1 })) }];
+            const progress = active.kind !== "quick" && !active.deload && !(active.kind === "4x4" && active.variant === "short");
+            const { messages } = await saveWorkout(log, planned, {
+              progress,
+              progressSets: (x) => !!done[x.setIndex] && counts(done[x.setIndex]),
+            });
+            await saveRun(null);
+            toast(messages.length ? `Saved. ${messages.join(" · ")}` : "Saved", "good");
+            onClose();
+            // Friday's Quick 20 is "20 + 5 min mobility": go straight to the short Daily 10.
+            const friday = weekdayOf(dateKey(Date.now(), settings?.tz)) === 5;
+            router.push(active.kind === "quick" && friday && !early ? "/train/follow?id=DAILY10&v=short" : "/train");
+          } catch (e) {
+            toast((e as Error).message || "Couldn't save. Try again.", "bad");
+            setBusy(false);
+          }
         }}
       >
         Save

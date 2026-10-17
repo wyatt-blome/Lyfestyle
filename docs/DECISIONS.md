@@ -205,3 +205,14 @@ The spec table lists 38 / 24 min, but its own parts add up to 40 (10 + 4 × 4 + 
 
 ## D30. Tap targets
 Every standalone link is now at least 48 px tall: why-card chapter links, episode and Credits links, Program days, swap links, Resume, and Export a backup. So are the day-timeline markers, as a 48 px target around a small dot.
+
+# Review round 2 (fix verification)
+
+## D31. Sync follow-ups
+- **Onboarding timestamp:** finishing onboarding and following the device's time zone save settings without bumping `updatedAt` (`saveSettings(…, { touch: false })`). Settings from another phone therefore win a new phone's first sync, and two phones in different zones don't keep overwriting each other.
+- **Sign-out:** it revokes only this device's session (`scope=local`).
+- **Failed rows:** a pulled row that fails to save keeps the pull cursor where it was, so it's retried.
+- **Mid-sync sign-out:** a generation counter stops a sync that was already running from writing stale cursors after a sign-out or reset.
+- **Erase all data:** it also signs this phone out of sync, so the data doesn't come straight back.
+- **Save errors:** a failed Save shows a toast and can be tried again.
+- **Logger:** the logger is keyed by session, so moving between `?id=` values never leaves a blank page.

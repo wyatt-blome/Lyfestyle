@@ -54,6 +54,15 @@ describe("settings", () => {
     await saveSettings({ onboarded: true });
     expect(Date.parse((await getSettings()).updatedAt)).toBeGreaterThan(Date.parse("2020-01-01"));
   });
+
+  it("onboarding and time-zone writes keep the stored timestamp, so sync from another phone wins", async () => {
+    await db().settings.clear();
+    await saveSettings({ onboarded: true, age: 50 }, { touch: false });
+    await saveSettings({ tz: "America/New_York" }, { touch: false });
+    const s = await getSettings();
+    expect(s.updatedAt).toBe(SETTINGS_EPOCH);
+    expect(s.age).toBe(50);
+  });
 });
 
 describe("sync pull", () => {
@@ -158,5 +167,7 @@ describe("sync pull", () => {
     const last = JSON.parse(store.get("fm.sync.last")!);
     expect(last.ok).toBe(false);
     expect(last.message).toMatch(/received 1, 1 couldn't be saved/);
+    // The cursor stays put so the failed row is retried next run.
+    expect(store.get("fm.sync.pulledAt") ?? null).toBeNull();
   });
 });

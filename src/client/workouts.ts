@@ -55,7 +55,9 @@ export function saveWorkout(
   const key = `${log.templateId}|${log.startedAt}`;
   const inFlight = saving.get(key);
   if (inFlight) return inFlight;
-  const p = doSave(log, blocks, opts);
+  // Forget the promise once settled: a retry after an error runs again (the stored-log check
+  // above keeps it idempotent).
+  const p = doSave(log, blocks, opts).finally(() => saving.delete(key));
   saving.set(key, p);
   return p;
 }

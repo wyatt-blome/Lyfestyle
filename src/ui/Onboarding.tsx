@@ -26,7 +26,7 @@ export function Onboarding() {
     if (tz === here) return;
     void db()
       .settings.get("settings")
-      .then((s) => (s && s.tz !== here ? saveSettings({ tz: here }) : undefined))
+      .then((s) => (s && s.tz !== here ? saveSettings({ tz: here }, { touch: false }) : undefined))
       .catch(() => undefined);
   }, [tz]);
 
@@ -51,7 +51,8 @@ export function Onboarding() {
           disabled={!ok}
           onClick={() => {
             const n = Number(age);
-            void saveSettings({ onboarded: true, age: n > 10 && n < 110 ? n : settings.age });
+            // Not stamped as an edit: on a second phone, the real settings from sync must win.
+            void saveSettings({ onboarded: true, age: n > 10 && n < 110 ? n : settings.age }, { touch: false });
           }}
         >
           Start
