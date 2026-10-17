@@ -69,6 +69,8 @@ test("the Q4 score saves and the next Q4 shows it", async ({ page }) => {
   await page.clock.runFor(1_100_000);
   await expect(page.getByRole("heading", { name: "Nice work" })).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
+  // Saving redirects (on a Friday, to the 5-minute mobility); wait for it so the save completes.
+  await expect(page).toHaveURL(/\/train\/follow\?id=DAILY10&v=short$/);
   await page.goto("/train/quick?id=Q4");
   await expect(page.getByText("Last Q4: 5 rounds")).toBeVisible();
 });
