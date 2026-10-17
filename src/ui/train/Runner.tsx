@@ -83,8 +83,10 @@ export function Runner({ active, title, onDone }: { active: ActiveRun; title: st
   const seg = p.segment;
   const current = seg?.items[0];
   const ex = current ? exerciseById.get(current.exerciseId) : undefined;
-  // Next-move preview: the next item in this segment, else the next segment's first move.
-  const nextItem = seg?.items[1] ?? p.next?.items[0];
+  // Next-move preview: timed formats that cycle moves carry the next one as items[1]; lists
+  // (prep, downshift, AMRAP, ladder, rounds) show all their moves, so preview the next segment.
+  const cycles = seg && seg.kind === "work" && seg.mode !== "AMRAP" && seg.mode !== "LADDER" && seg.mode !== "ROUNDS";
+  const nextItem = (cycles ? seg?.items[1] : undefined) ?? p.next?.items[0];
   const nextLabel = p.next ? `${KIND_LABEL[p.next.kind]}${nextItem ? ` · ${moveName(nextItem)}` : ""}` : "Finish";
   const z = settings ? zones(settings.age) : null;
 

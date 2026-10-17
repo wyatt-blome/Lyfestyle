@@ -168,7 +168,7 @@ function CheckInSheet({ fastId, onClose }: { fastId: string | null; onClose: () 
     <Sheet open={!!fastId} onClose={close} title="How did that fast feel?">
       <div className="flex flex-col gap-4">
         <Scale label="Energy" value={v.energy} onChange={(n) => setV({ ...v, energy: n })} />
-        <Scale label="Hunger" value={v.hunger} onChange={(n) => setV({ ...v, hunger: n })} low="Not hungry" high="Starving" />
+        <Scale label="Hunger (lower is easier)" value={v.hunger} onChange={(n) => setV({ ...v, hunger: n })} low="Not hungry" high="Starving" />
         <Scale label="Mood" value={v.mood} onChange={(n) => setV({ ...v, mood: n })} />
         <Scale label="Sleep last night" value={v.sleep} onChange={(n) => setV({ ...v, sleep: n })} low="Poor" high="Great" />
         <Field label="Notes">
@@ -269,7 +269,7 @@ function AddEntryForm({
         }
       }}
     >
-      <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Kind">
+      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Kind">
         {KINDS.map((k) => (
           <button
             key={k}
@@ -277,7 +277,7 @@ function AddEntryForm({
             role="radio"
             aria-checked={kind === k}
             onClick={() => setKind(k)}
-            className={`min-h-12 rounded-xl text-base capitalize ${kind === k ? "bg-accent text-accent-ink font-semibold" : "bg-surface-2"}`}
+            className={`min-h-12 rounded-xl text-base capitalize ${kind === k ? "bg-accent text-accent-ink font-semibold" : "border border-line bg-surface-2"}`}
           >
             {k}
           </button>

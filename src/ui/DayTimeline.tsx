@@ -9,6 +9,7 @@ import type { Fast, IntakeEntry } from "@/lib/types";
 const FILL = {
   fasting: "var(--color-accent)",
   eating: "color-mix(in srgb, var(--color-info) 55%, transparent)",
+  untracked: "var(--color-surface-2)",
   future: "transparent",
 };
 
@@ -30,7 +31,6 @@ export function DayTimeline({
   const hours = segmentHours(segs);
   const sorted = [...entries].sort((a, b) => a.at.localeCompare(b.at));
   const pickedEntry = sorted.find((e) => e.id === picked);
-  const hasFast = hours.fasting > 0;
   const ticks = [0, 6, 12, 18, 24].map((h) => ({
     h,
     at: Math.min(day.end, day.start + h * 3_600_000),
@@ -42,7 +42,7 @@ export function DayTimeline({
     <div className="flex flex-col gap-2">
       <p className="text-base tabular">
         <span className="font-semibold">{hours.fasting.toFixed(1)} h</span> fasting ·{" "}
-        <span className="font-semibold">{hours.eating.toFixed(1)} h</span> {hasFast ? "eating" : "not in a fast"}
+        <span className="font-semibold">{hours.eating.toFixed(1)} h</span> eating
       </p>
       <div className="relative pt-12" aria-hidden>
         {/* Entry markers sit above the bar; tap one to read it. */}
@@ -109,8 +109,13 @@ export function DayTimeline({
           <span className="inline-block h-3 w-5 rounded-sm" style={{ background: FILL.fasting }} /> Fasting
         </li>
         <li className="flex items-center gap-2">
-          <span className="inline-block h-3 w-5 rounded-sm" style={{ background: FILL.eating }} /> {hasFast ? "Eating" : "No fast logged"}
+          <span className="inline-block h-3 w-5 rounded-sm" style={{ background: FILL.eating }} /> Eating
         </li>
+        {hours.untracked > 0 && (
+          <li className="flex items-center gap-2">
+            <span className="inline-block h-3 w-5 rounded-sm border border-line" style={{ background: FILL.untracked }} /> Not tracked
+          </li>
+        )}
         <li className="flex items-center gap-2">
           <span className="inline-block h-3 w-3 rounded-full bg-ink" /> Breaks fast
         </li>

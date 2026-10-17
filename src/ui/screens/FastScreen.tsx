@@ -72,7 +72,7 @@ function StartFast() {
                 setPicked(p.id);
                 setAck(false);
               }}
-              className={`flex min-h-16 flex-col items-center justify-center rounded-2xl px-1 ${protocol === p.id ? "bg-accent text-accent-ink" : "bg-surface-2"}`}
+              className={`flex min-h-16 flex-col items-center justify-center rounded-2xl px-1 ${protocol === p.id ? "bg-accent text-accent-ink" : "border border-line bg-surface-2"}`}
             >
               <span className="text-xl font-bold">{p.label}</span>
               {p.id === settings.defaultProtocol && <span className="text-xs">default</span>}
@@ -159,7 +159,7 @@ function Running({ fast }: { fast: Fast }) {
         <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
           <div>
             <dt className="text-sm text-muted">Started</dt>
-            <dd className="text-lg tabular">{formatDayTime(fast.startAt)}</dd>
+            <dd className="text-lg whitespace-nowrap tabular">{formatDayTime(fast.startAt)}</dd>
           </div>
           <div>
             <dt className="text-sm text-muted">Target</dt>
@@ -167,7 +167,7 @@ function Running({ fast }: { fast: Fast }) {
           </div>
           <div>
             <dt className="text-sm text-muted">Ends</dt>
-            <dd className="text-lg tabular">{formatDayTime(p.projectedEnd)}</dd>
+            <dd className="text-lg whitespace-nowrap tabular">{formatDayTime(p.projectedEnd)}</dd>
           </div>
         </dl>
         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -212,7 +212,7 @@ function Running({ fast }: { fast: Fast }) {
                 {s.label}
                 {s.extended && <span className="text-sm text-muted"> (extended, doctor note)</span>}
               </span>
-              <span className="text-base tabular">
+              <span className="whitespace-nowrap text-base tabular">
                 {s.fromH}–{s.toH} h
               </span>
             </li>

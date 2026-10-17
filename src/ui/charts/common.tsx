@@ -74,7 +74,9 @@ export function ChartFrame({ title, summary, readout, legend, table, children, e
       {empty ? null : children}
       <p className="sr-only">{summary}</p>
       {!empty && (
-        <table className="sr-only">
+        // Wrapped: a table ignores the 1 px sr-only width and would widen the page.
+        <div className="sr-only">
+        <table>
           <caption>{title}</caption>
           <thead>
             <tr>
@@ -93,6 +95,7 @@ export function ChartFrame({ title, summary, readout, legend, table, children, e
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </figure>
   );

@@ -164,7 +164,7 @@ function QuickChart({ logs }: { logs: Parameters<typeof quickScores>[0] }) {
         </Field>
       )}
       <LineChart
-        title={s ? `${s.templateId} ${name(s.templateId)}: ${s.metric}` : "Quick 20 scores"}
+        title={s ? `${name(s.templateId)}: ${s.metric}` : "Quick 20 scores"}
         unit={s?.metric ?? "rounds"}
         zeroBased
         empty="No Quick 20 scores yet."

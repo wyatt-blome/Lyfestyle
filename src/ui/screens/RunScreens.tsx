@@ -126,7 +126,7 @@ function QuickPicker() {
               type="button"
               aria-pressed={q.id === id}
               onClick={() => setPicked(q.id)}
-              className={`flex min-h-16 flex-col items-center justify-center rounded-2xl ${q.id === id ? "bg-accent text-accent-ink" : "bg-surface-2"}`}
+              className={`flex min-h-16 flex-col items-center justify-center rounded-2xl ${q.id === id ? "bg-accent text-accent-ink" : "border border-line bg-surface-2"}`}
             >
               <span className="text-xl font-bold">{q.id}</span>
               <span className="px-1 text-center text-xs">{q.name.split("· ")[1]}</span>
@@ -200,7 +200,7 @@ function FourByFourSetup() {
               type="button"
               aria-pressed={i === mode}
               onClick={() => setMode(i)}
-              className={`min-h-14 rounded-2xl text-lg ${i === mode ? "bg-accent text-accent-ink font-semibold" : "bg-surface-2"}`}
+              className={`min-h-14 rounded-2xl text-lg ${i === mode ? "bg-accent text-accent-ink font-semibold" : "border border-line bg-surface-2"}`}
             >
               {x.label}
             </button>
@@ -208,6 +208,22 @@ function FourByFourSetup() {
         </div>
         <p className="mt-2 text-base text-muted">{m.note}</p>
       </Card>
+      <p className="text-lg">
+        Today: {short ? "Short Day: 6 min warm-up + 2 intervals + 4 min cool-down" : deload ? "Deload: 2 intervals, nothing to failure" : `${st?.label ?? "4 intervals"}`}
+      </p>
+      <Button
+        variant="primary"
+        big
+        onClick={() => {
+          const segs = build4x4(t, short ? "short" : "full", intervals).map((s) => ({
+            ...s,
+            items: s.items.map((i) => ({ ...i, exerciseId: m.id })),
+          }));
+          void begin({ kind: "4x4", templateId: "C", variant: short ? "short" : "full", deload, workPct, run: createRun(segs, Date.now()), mode: m.label, hr: [] });
+        }}
+      >
+        Start 4×4
+      </Button>
       <Card title="Heart-rate zones">
         <p className="text-sm text-muted">HRmax = 211 − 0.64 × age ({settings.age}) ≈ {z.max} bpm</p>
         <dl className="mt-2 grid grid-cols-3 gap-2 text-center">
@@ -230,22 +246,6 @@ function FourByFourSetup() {
         </dl>
         <p className="mt-2 text-base">No strap? Work pace = 2–3 words, not a sentence.</p>
       </Card>
-      <p className="text-lg">
-        Today: {short ? "Short Day: 6 min warm-up + 2 intervals + 4 min cool-down" : deload ? "Deload: 2 intervals, nothing to failure" : `${st?.label ?? "4 intervals"}`}
-      </p>
-      <Button
-        variant="primary"
-        big
-        onClick={() => {
-          const segs = build4x4(t, short ? "short" : "full", intervals).map((s) => ({
-            ...s,
-            items: s.items.map((i) => ({ ...i, exerciseId: m.id })),
-          }));
-          void begin({ kind: "4x4", templateId: "C", variant: short ? "short" : "full", deload, workPct, run: createRun(segs, Date.now()), mode: m.label, hr: [] });
-        }}
-      >
-        Start 4×4
-      </Button>
       <p className="text-sm text-muted">Timings and heart-rate targets come from NTNU (see Credits), not from the podcast.</p>
     </Page>
   );
@@ -312,6 +312,7 @@ function Summary({ active, onClose }: { active: ActiveRun; onClose: () => void }
 
   return (
     <Page title="Nice work">
+      <p className="text-base text-muted">Save or discard this session before starting another.</p>
       <Card>
         <p className="text-2xl font-bold">{sessionLabel(t)}</p>
         {active.mode && <p className="text-muted">Mode: {active.mode}</p>}

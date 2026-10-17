@@ -87,7 +87,7 @@ export function SessionScreen() {
           Start {variant === "short" ? "Short Day" : ""}
         </Button>
         <Button onClick={() => setVariant(variant === "short" ? "full" : "short")} disabled={t.fullMin === t.shortMin}>
-          {variant === "short" ? "Full" : "Short Day"}
+          {variant === "short" ? "Full" : "Short"}
         </Button>
         <Button onClick={() => setEasyOpen(true)}>Easy Day</Button>
         <LinkButton href="/train/quick">Quick 20</LinkButton>

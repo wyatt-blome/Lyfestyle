@@ -91,14 +91,23 @@ describe("fasting vs eating", () => {
   it("counts a running fast up to now and leaves the rest as future", () => {
     const mid = day.start + 15 * HOUR_MS; // 3 pm local
     const segs = daySegments([fast({ startAt: "2026-10-17T16:00:00Z" })], day, mid);
-    expect(segs.map((s) => s.kind)).toEqual(["eating", "fasting", "future"]);
+    // No fast had ended before this one started, so the morning is "not tracked", not eating.
+    expect(segs.map((s) => s.kind)).toEqual(["untracked", "fasting", "future"]);
     expect(segs[1].end).toBe(mid);
     expect(segmentHours(segs).future).toBe(9);
   });
 
   it("ignores deleted fasts", () => {
     const f = fast({ startAt: "2026-10-17T02:00:00Z", endAt: "2026-10-17T18:00:00Z", deletedAt: "x" });
-    expect(daySegments([f], day, now).map((s) => s.kind)).toEqual(["eating"]);
+    expect(daySegments([f], day, now).map((s) => s.kind)).toEqual(["untracked"]);
+  });
+
+  it("counts time after a fast ended as eating, and time before any fast as not tracked", () => {
+    const yesterday = fast({ startAt: "2026-10-16T02:00:00Z", endAt: "2026-10-16T18:00:00Z" });
+    expect(daySegments([yesterday], day, now).map((s) => s.kind)).toEqual(["eating"]);
+    const first = fast({ startAt: new Date(day.start + 3 * HOUR_MS).toISOString(), endAt: "2026-10-17T18:00:00Z" });
+    const fresh = daySegments([first], day, now);
+    expect(fresh.map((s) => s.kind)).toEqual(["untracked", "fasting", "eating"]);
   });
 
   it("places markers along the day", () => {

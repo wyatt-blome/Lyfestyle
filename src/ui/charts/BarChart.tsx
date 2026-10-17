@@ -92,7 +92,7 @@ export function BarChart({
           {ticks.map((t, i) => (
             <g key={`${t}-${i}`}>
               <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke="var(--color-line)" strokeWidth="1" />
-              <text x={PAD.left - 6} y={y(t) + 4} textAnchor="end" fontSize="12" fill="var(--color-muted)" className="tabular">
+              <text x={PAD.left - 6} y={y(t) + 4} textAnchor="end" fontSize="14" fill="var(--color-muted)" className="tabular">
                 {fmt(t)}
               </text>
             </g>
@@ -108,7 +108,7 @@ export function BarChart({
                 strokeWidth="1"
                 strokeDasharray="4 4"
               />
-              <text x={width - PAD.right} y={y(target.value) - 4} textAnchor="end" fontSize="12" fill="var(--color-muted)">
+              <text x={width - PAD.right} y={y(target.value) - 4} textAnchor="end" fontSize="14" fill="var(--color-muted)">
                 {target.label}
               </text>
             </g>
@@ -128,10 +128,10 @@ export function BarChart({
                 {d && <path d={d} fill={b.color ?? color} opacity={active === null || active === i ? 1 : 0.55} />}
                 {i % every === 0 ? (
                   <text
-                    x={i === 0 ? x : i + every > bars.length - 1 && bars.length > 1 ? x + bw : x + bw / 2}
+                    x={i === 0 ? x : i === bars.length - 1 && bars.length > 1 ? x + bw : x + bw / 2}
                     y={CHART_HEIGHT - 6}
-                    textAnchor={i === 0 ? "start" : i + every > bars.length - 1 && bars.length > 1 ? "end" : "middle"}
-                    fontSize="12"
+                    textAnchor={i === 0 ? "start" : i === bars.length - 1 && bars.length > 1 ? "end" : "middle"}
+                    fontSize="14"
                     fill="var(--color-muted)"
                   >
                     {b.label}

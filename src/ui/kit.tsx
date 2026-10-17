@@ -179,7 +179,7 @@ export function Scale({
             key={n}
             aria-pressed={value === n}
             onClick={() => onChange(n)}
-            className={`min-h-12 rounded-xl text-lg tabular ${value === n ? "bg-accent text-accent-ink font-bold" : "bg-surface-2"}`}
+            className={`min-h-12 rounded-xl text-lg tabular ${value === n ? "bg-accent text-accent-ink font-bold" : "border border-line bg-surface-2"}`}
           >
             {n}
           </button>

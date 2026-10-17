@@ -33,7 +33,8 @@ function ImageWithFallback({ src, alt, onFail }: { src: string; alt: string; onF
   );
 }
 
-export function LoopedDemo({ exercise, size = "md" }: { exercise: Exercise; size?: "sm" | "md" | "lg" }) {
+/** `cues`: show the cues inside the no-demo box (off where the screen lists them anyway). */
+export function LoopedDemo({ exercise, size = "md", cues = true }: { exercise: Exercise; size?: "sm" | "md" | "lg"; cues?: boolean }) {
   const m = exercise.media;
   const [ownOk, setOwnOk] = useState(!!m.ownClip);
   const [primaryOk, setPrimaryOk] = useState(true);
@@ -64,8 +65,8 @@ export function LoopedDemo({ exercise, size = "md" }: { exercise: Exercise; size
     <figure className="flex flex-col gap-1">
       {body ?? (
         <div className={`flex ${size === "sm" ? "h-24" : "min-h-24"} flex-col justify-center rounded-2xl border border-dashed border-line p-3`}>
-          <p className="text-sm uppercase tracking-wide text-muted">No demo: follow the cues</p>
-          {size !== "sm" && (
+          <p className="text-sm uppercase tracking-wide text-muted">{cues ? "No demo: follow the cues" : "No demo: follow the cues below"}</p>
+          {size !== "sm" && cues && (
             <ul className="mt-1 list-disc pl-5 text-base">
               {exercise.cues.map((c) => (
                 <li key={c}>{c}</li>

@@ -20,7 +20,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setItems((xs) => [...xs, { id, text, tone }]);
     setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== id)), 4500);
   }, []);
-  const tones = { info: "bg-surface-2 border-line", good: "bg-good/20 border-good/50", bad: "bg-bad/20 border-bad/50" };
+  // Solid backgrounds: a see-through toast over the page heading is unreadable.
+  const tones = { info: "bg-surface-2 border-line", good: "bg-surface-2 border-good/60 text-good", bad: "bg-surface-2 border-bad/60 text-bad" };
   return (
     <Ctx.Provider value={push}>
       {children}

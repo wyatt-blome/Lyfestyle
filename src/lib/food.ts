@@ -74,26 +74,37 @@ export function fastingIntervals(fasts: Fast[], day: Interval, now: number): Int
   return mergeIntervals(raw);
 }
 
-export type SegmentKind = "fasting" | "eating" | "future";
+export type SegmentKind = "fasting" | "eating" | "untracked" | "future";
 
 export interface Segment extends Interval {
   kind: SegmentKind;
 }
 
 /**
- * The day split into fasting, eating (anything not covered by a fast record, so it may also mean
- * "not tracked") and future (after now) segments, in order, covering the whole day.
+ * The day split into fasting, eating (time after a fast ended and before the next began),
+ * untracked (time before any fast on record ended) and future (after now) segments, in order,
+ * covering the whole day.
  */
 export function daySegments(fasts: Fast[], day: Interval, now: number): Segment[] {
   const out: Segment[] = [];
   const cap = Math.max(day.start, Math.min(day.end, now));
+  const ends = fasts.filter((f) => !f.deletedAt && f.endAt).map((f) => Date.parse(f.endAt!));
+  const gap = (start: number, end: number) => {
+    const firstEnd = Math.min(...ends.filter((e) => e < end), Infinity);
+    if (firstEnd > start && firstEnd < end) {
+      out.push({ start, end: firstEnd, kind: "untracked" });
+      out.push({ start: firstEnd, end, kind: "eating" });
+    } else {
+      out.push({ start, end, kind: firstEnd <= start ? "eating" : "untracked" });
+    }
+  };
   let cursor = day.start;
   for (const f of fastingIntervals(fasts, day, now)) {
-    if (f.start > cursor) out.push({ start: cursor, end: f.start, kind: "eating" });
+    if (f.start > cursor) gap(cursor, f.start);
     out.push({ ...f, kind: "fasting" });
     cursor = f.end;
   }
-  if (cap > cursor) out.push({ start: cursor, end: cap, kind: "eating" });
+  if (cap > cursor) gap(cursor, cap);
   if (day.end > cap) out.push({ start: cap, end: day.end, kind: "future" });
   return out;
 }
@@ -107,7 +118,7 @@ export function fractionOfDay(at: number, day: Interval): number {
 
 /** Total hours of each kind in a set of segments. */
 export function segmentHours(segments: Segment[]): Record<SegmentKind, number> {
-  const out: Record<SegmentKind, number> = { fasting: 0, eating: 0, future: 0 };
+  const out: Record<SegmentKind, number> = { fasting: 0, eating: 0, untracked: 0, future: 0 };
   for (const s of segments) out[s.kind] += (s.end - s.start) / 3_600_000;
   return out;
 }

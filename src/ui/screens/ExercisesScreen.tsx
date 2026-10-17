@@ -57,7 +57,7 @@ export function ExerciseDetailScreen({ id }: { id: string }) {
   const st = key ? stageOf(key, prog?.get(key)) : null;
   return (
     <Page title={e.name} back="/train/exercises">
-      <LoopedDemo exercise={e} size="lg" />
+      <LoopedDemo exercise={e} size="lg" cues={false} />
       {st && <Badge tone="info">Your stage: {st.label}</Badge>}
       <Card title="Cues">
         <ul className="list-disc pl-5">

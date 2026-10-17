@@ -4,7 +4,7 @@
   --color-bg: #0b0f0e;
   --color-surface: #141a19;
   --color-surface-2: #1c2422;
-  --color-line: #2a3431;
+  --color-line: #4a5754;
   --color-ink: #eef3f1;
   --color-muted: #9aa8a4;
   --color-accent: #f2a541;
@@ -22,6 +22,7 @@
 
 html,
 body {
+  overflow-x: clip;
   background: var(--color-bg);
   color: var(--color-ink);
   font-family: var(--font-sans);

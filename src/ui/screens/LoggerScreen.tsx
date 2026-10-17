@@ -186,7 +186,7 @@ function Logger() {
                         type="button"
                         aria-pressed={s.rpe === n}
                         onClick={() => patchSet(i, { rpe: s.rpe === n ? undefined : n })}
-                        className={`min-h-12 flex-1 rounded-xl text-base ${s.rpe === n ? "bg-accent text-accent-ink" : "bg-surface-2"}`}
+                        className={`min-h-12 flex-1 rounded-xl text-base ${s.rpe === n ? "bg-accent text-accent-ink" : "border border-line bg-surface-2"}`}
                       >
                         {n}
                       </button>
@@ -195,7 +195,7 @@ function Logger() {
                 )}
                 {openDemo === i && ex && (
                   <div className="mt-3">
-                    <LoopedDemo exercise={ex} />
+                    <LoopedDemo exercise={ex} cues={false} />
                     <ul className="mt-2 list-disc pl-5 text-base">
                       {ex.cues.map((c) => (
                         <li key={c}>{c}</li>
@@ -249,7 +249,7 @@ function Logger() {
           <p className="text-muted">How hard was it overall?</p>
           <div className="grid grid-cols-5 gap-2">
             {RPES.map((n) => (
-              <button key={n} type="button" aria-pressed={rpe === n} onClick={() => setRpe(n)} className={`min-h-12 rounded-xl ${rpe === n ? "bg-accent text-accent-ink" : "bg-surface-2"}`}>
+              <button key={n} type="button" aria-pressed={rpe === n} onClick={() => setRpe(n)} className={`min-h-12 rounded-xl ${rpe === n ? "bg-accent text-accent-ink" : "border border-line bg-surface-2"}`}>
                 {n}
               </button>
             ))}

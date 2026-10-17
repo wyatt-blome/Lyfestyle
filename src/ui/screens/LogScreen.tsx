@@ -47,11 +47,11 @@ export function LogScreen() {
   return (
     <Page title="Food & drink">
       <div className="flex items-center justify-between gap-2">
-        <Button aria-label="Previous day" onClick={() => setDay(addDays(key, -1))}>
+        <Button aria-label="Previous day" className="min-w-14 text-2xl" onClick={() => setDay(addDays(key, -1))}>
           ‹
         </Button>
         <span className="text-lg font-semibold">{key === today ? "Today" : key === addDays(today, -1) ? "Yesterday" : key}</span>
-        <Button aria-label="Next day" disabled={key >= today} onClick={() => setDay(addDays(key, 1))}>
+        <Button aria-label="Next day" className="min-w-14 text-2xl" disabled={key >= today} onClick={() => setDay(addDays(key, 1))}>
           ›
         </Button>
       </div>

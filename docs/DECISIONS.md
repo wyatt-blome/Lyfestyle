@@ -216,3 +216,21 @@ Every standalone link is now at least 48 px tall: why-card chapter links, episod
 - **Erase all data:** it also signs this phone out of sync, so the data doesn't come straight back.
 - **Save errors:** a failed Save shows a toast and can be tried again.
 - **Logger:** the logger is keyed by session, so moving between `?id=` values never leaves a blank page.
+
+# Review round 2 (visual review at 390 px)
+
+## D32. Layout and legibility fixes
+- **Overflow:** chart data tables for screen readers are wrapped so they can't widen the page (Progress scrolled sideways). `html, body` clip horizontal overflow as a safety net.
+- **Next-move preview:** the runner's preview only looks inside the segment for formats that cycle moves. During prep it now names the first work move, not the second prep item.
+- **Sizes and labels:**
+  - The add-entry kind picker uses two columns, so "Supplement" fits.
+  - Log's day arrows are full size.
+  - Chart axis text is 14 px, and the bar-chart date labels no longer overlap.
+  - Short labels don't break mid-value.
+- **Contrast:** field and button edges use a brighter line color (#4a5754) and unselected chips have a border, for at least 3:1 contrast against their background.
+- **Tabs:** the tab bar uses drawn SVG icons instead of text glyphs, and the More tab is lit on Progress.
+- **Toasts:** they're solid, so they stay readable over the page heading.
+- **Day timeline:** it shows time before any recorded fast as "Not tracked" rather than eating.
+- **Cues:** a move without a demo lists its cues once.
+- **4×4 setup:** Start sits above the heart-rate card.
+- **Ended sessions:** an ended session asks to be saved or discarded before another can start.

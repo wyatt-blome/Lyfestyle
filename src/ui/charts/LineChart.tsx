@@ -129,18 +129,18 @@ export function LineChart({
           {ticks.map((t, i) => (
             <g key={`${t}-${i}`}>
               <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke="var(--color-line)" strokeWidth="1" />
-              <text x={PAD.left - 6} y={y(t) + 4} textAnchor="end" fontSize="12" fill="var(--color-muted)" className="tabular">
+              <text x={PAD.left - 6} y={y(t) + 4} textAnchor="end" fontSize="14" fill="var(--color-muted)" className="tabular">
                 {fmt(t)}
               </text>
             </g>
           ))}
           {has && (
             <>
-              <text x={PAD.left} y={CHART_HEIGHT - 6} fontSize="12" fill="var(--color-muted)">
+              <text x={PAD.left} y={CHART_HEIGHT - 6} fontSize="14" fill="var(--color-muted)">
                 {shortDate(first)}
               </text>
               {dates.length > 1 && (
-                <text x={width - PAD.right} y={CHART_HEIGHT - 6} textAnchor="end" fontSize="12" fill="var(--color-muted)">
+                <text x={width - PAD.right} y={CHART_HEIGHT - 6} textAnchor="end" fontSize="14" fill="var(--color-muted)">
                   {shortDate(lastDate)}
                 </text>
               )}

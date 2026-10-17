@@ -10,7 +10,7 @@ test("Monday shows A, and Short Day is its 20-min version", async ({ page }) => 
   await onboard(page);
   await expect(page.getByText("A · Bell & Carry")).toBeVisible();
   await page.goto("/train");
-  await page.getByRole("button", { name: /Short Day/ }).click();
+  await page.getByRole("button", { name: /^Short · 20 min/ }).click();
   await expect(page).toHaveURL(/v=short/);
   await expect(page.getByText("20 min", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "McGill Big 3" })).toBeVisible();

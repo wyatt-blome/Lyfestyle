@@ -53,7 +53,7 @@ export function ExerciseItem({
       </button>
       {open && (
         <div className="mt-3 flex flex-col gap-3">
-          <LoopedDemo exercise={ex} />
+          <LoopedDemo exercise={ex} cues={false} />
           <ul className="list-disc pl-5 text-base">
             {ex.cues.map((c) => (
               <li key={c}>{c}</li>

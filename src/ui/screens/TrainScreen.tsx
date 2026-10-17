@@ -88,7 +88,7 @@ export function TrainScreen() {
             </Button>
             <div className="grid grid-cols-2 gap-2">
               <Button onClick={() => router.push(`/train/session?id=${session.id}&v=short`)} disabled={session.fullMin === session.shortMin}>
-                Short Day ({session.shortMin} min)
+                Short · {session.shortMin} min
               </Button>
               <Button onClick={() => router.push(`/train/session?id=${defaultEasy(session.id)}&v=easy`)}>Easy Day</Button>
             </div>
@@ -136,7 +136,7 @@ export function TrainScreen() {
                   <span className="block text-lg">{sessionLabel(s)}</span>
                   <span className="text-sm text-muted">{s.summary}</span>
                 </span>
-                <Badge>{s.fullMin} min</Badge>
+                <span className="shrink-0 whitespace-nowrap"><Badge>{s.fullMin} min</Badge></span>
               </Link>
             </li>
           ))}
