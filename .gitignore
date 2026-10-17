@@ -16,3 +16,4 @@ npm-debug.log*
 # personal backups
 fast-and-move-backup-*.json
 /test-results/
+/public/media/

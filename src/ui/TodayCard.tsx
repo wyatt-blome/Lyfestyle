@@ -54,7 +54,7 @@ export function TodayCard({ plan, fast, now }: { plan: TodayPlan; fast: Fast | n
             </Notice>
           )}
           {plan.week.deload && <p className="text-base text-info">Deload week: about 60% of the sets, nothing to failure.</p>}
-          <LinkButton href="/train" variant="primary" big className="mt-1">
+          <LinkButton href={`/train/session?id=${session.id}`} variant="primary" big className="mt-1">
             Open session
           </LinkButton>
         </div>
@@ -62,7 +62,7 @@ export function TodayCard({ plan, fast, now }: { plan: TodayPlan; fast: Fast | n
         <div className="flex flex-col gap-2">
           <p className="text-2xl font-bold">Rest day</p>
           {optional && <p className="text-muted">Optional: {optional.name} ({optional.fullMin} min).</p>}
-          <LinkButton href="/train" className="mt-1">
+          <LinkButton href="/train/session?id=DAILY10" className="mt-1">
             See the Daily 10
           </LinkButton>
         </div>

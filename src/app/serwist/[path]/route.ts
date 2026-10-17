@@ -1,4 +1,5 @@
 import { createSerwistRoute } from "@serwist/turbopack";
+import { exercises } from "@/seed";
 import { APP_ROUTES } from "@/ui/routes";
 
 // One revision per build, so every screen's cached HTML refreshes together.
@@ -9,5 +10,5 @@ export const { dynamic, dynamicParams, revalidate, generateStaticParams, GET } =
   useNativeEsbuild: true,
   // Every screen is a static page rendered on the device, so precaching them all makes the
   // whole app open offline after the first visit.
-  additionalPrecacheEntries: APP_ROUTES.map((url) => ({ url, revision })),
+  additionalPrecacheEntries: [...APP_ROUTES, ...exercises.map((e) => `/train/exercises/${e.id}`)].map((url) => ({ url, revision })),
 });

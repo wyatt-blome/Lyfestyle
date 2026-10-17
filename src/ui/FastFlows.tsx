@@ -241,6 +241,8 @@ function AddEntryForm({
         const t: IntakeTemplate = {
           kind,
           name: name.trim(),
+          source: preset.source,
+          barcode: preset.barcode,
           qty: num(qty),
           unit: unit.trim() || undefined,
           proteinG: num(protein),

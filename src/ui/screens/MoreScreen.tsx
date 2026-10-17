@@ -7,6 +7,8 @@ const LINKS = [
   { href: "/why/episodes", label: "Episodes", sub: "Diary of a CEO episodes and your notes" },
   { href: "/settings", label: "Settings", sub: "Age, protocol, gear, reminders, backup" },
   { href: "/settings/credits", label: "Credits", sub: "Demo and content sources" },
+  { href: "/progress", label: "Progress", sub: "Body metrics, charts, weekly summary" },
+  { href: "/why/insights", label: "My insights", sub: "Principles you saved, with their sources" },
 ];
 
 export function MoreScreen() {
