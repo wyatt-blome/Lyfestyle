@@ -6,7 +6,9 @@ import { saveSettings, useSettings } from "@/client/settings";
 import { PROTOCOLS } from "@/lib/fasting";
 import { formatDayTime } from "@/lib/time";
 import type { NotificationPrefs, ProtocolId } from "@/lib/types";
-import { Button, Card, Check, Field, Notice, Page } from "../kit";
+import { Button, Card, Check, Field, Page } from "../kit";
+import { PushSettings } from "../PushSettings";
+import { SyncSettings } from "../SyncSettings";
 import { useToast } from "../Toast";
 
 function parseList(s: string): number[] {
@@ -94,7 +96,7 @@ export function SettingsScreen() {
       </Card>
 
       <Card title="Reminders">
-        <p className="mb-2 text-base text-muted">Shown in the app while it&apos;s open. Background push for installed apps comes in Phase 4.</p>
+        <p className="mb-2 text-base text-muted">Shown in the app while it&apos;s open. For reminders when it&apos;s closed, turn on background reminders below.</p>
         <Check checked={s.notifications.halfway} onChange={(v) => void setNotif("halfway", v)}>
           Halfway through a fast
         </Check>
@@ -119,6 +121,8 @@ export function SettingsScreen() {
           </Button>
         )}
       </Card>
+
+      <PushSettings />
 
       <Card title="Backup" className="scroll-mt-4">
         <div id="backup" />
@@ -162,9 +166,7 @@ export function SettingsScreen() {
         </div>
       </Card>
 
-      <Card title="Sync">
-        <Notice tone="info">Optional Supabase sync arrives in Phase 4. The app works fully without it.</Notice>
-      </Card>
+      <SyncSettings />
 
       <Link href="/settings/credits" className="btn flex min-h-12 items-center justify-center rounded-2xl bg-surface text-lg">
         Credits

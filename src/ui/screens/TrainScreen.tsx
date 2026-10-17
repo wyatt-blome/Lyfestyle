@@ -14,6 +14,7 @@ import { exerciseById, sessions } from "@/seed";
 import { Badge, Button, Card, LinkButton, Notice, Page } from "../kit";
 import { mediaUrls, warmMedia } from "../LoopedDemo";
 import { ReadinessCard } from "../ReadinessCard";
+import { useTodayReadiness } from "@/client/readiness";
 import { effectiveSession, sessionLabel } from "../TodayCard";
 import { startHref } from "../train/useQuery";
 import { WhyCards } from "../WhyCard";
@@ -24,9 +25,11 @@ export function TrainScreen() {
   const settings = useSettings();
   const fast = useActiveFast();
   const plan = useTodayPlan(settings, now);
-  const reasons = useDeloadReasons(now) ?? [];
+  const loadedReasons = useDeloadReasons(now);
+  const reasons = loadedReasons ?? [];
   const draft = useDraft();
   const run = useActiveRun();
+  const readiness = useTodayReadiness();
   const restricted = longFastActive(fast ?? undefined, now);
   const visible = sessions.filter((s) => !restricted || allowedDuringLongFast(s.id));
   const eff = plan ? effectiveSession(plan, fast, now) : null;
@@ -39,6 +42,11 @@ export function TrainScreen() {
     const ids = new Set(session.blocks.flatMap((b) => b.items.map((i) => i.exerciseId)));
     warmMedia([...ids].flatMap((id) => (exerciseById.get(id) ? mediaUrls(exerciseById.get(id)!) : [])));
   }, [session]);
+
+  // Render once everything from IndexedDB is in (a few ms), so nothing jumps as it arrives.
+  if (!plan || !loadedReasons || draft === undefined || run === undefined || readiness === undefined || fast === undefined) {
+    return <Page title="Train">{null}</Page>;
+  }
 
   return (
     <Page title="Train">
@@ -54,52 +62,50 @@ export function TrainScreen() {
         </Notice>
       )}
 
-      {plan && (
-        <Card
-          title="Today"
-          action={
-            <span className="flex gap-2">
-              <Badge>Week {plan.week.cycleWeek}/6</Badge>
-              {deload && <Badge tone="info">Deload</Badge>}
-            </span>
-          }
-        >
-          {session ? (
-            <div className="flex flex-col gap-3">
-              <Link href={`/train/session?id=${session.id}`} className="block">
-                <p className="text-2xl font-bold">{sessionLabel(session)}</p>
-                <p className="text-muted">
-                  {session.fullMin} min · short {session.shortMin} min
-                </p>
-                <p>{session.summary}</p>
-              </Link>
-              {plan.reason && <Notice tone="info">{plan.reason}</Notice>}
-              {eff?.restricted && eff.planned && <Notice>Past 24 h fasted: {sessionLabel(eff.planned)} is swapped for an easy day.</Notice>}
-              {deload && <p className="text-base text-info">Deload: {reasons.join(" · ")}. ~60% of the sets, nothing to failure.</p>}
-              <Button variant="primary" big onClick={() => router.push(startHref(session.id, "full", deload))}>
-                Start
+      <Card
+        title="Today"
+        action={
+          <span className="flex gap-2">
+            <Badge>Week {plan.week.cycleWeek}/6</Badge>
+            {deload && <Badge tone="info">Deload</Badge>}
+          </span>
+        }
+      >
+        {session ? (
+          <div className="flex flex-col gap-3">
+            <Link href={`/train/session?id=${session.id}`} className="block">
+              <p className="text-2xl font-bold">{sessionLabel(session)}</p>
+              <p className="text-muted">
+                {session.fullMin} min · short {session.shortMin} min
+              </p>
+              <p>{session.summary}</p>
+            </Link>
+            {plan.reason && <Notice tone="info">{plan.reason}</Notice>}
+            {eff?.restricted && eff.planned && <Notice>Past 24 h fasted: {sessionLabel(eff.planned)} is swapped for an easy day.</Notice>}
+            {deload && <p className="text-base text-info">Deload: {reasons.join(" · ")}. ~60% of the sets, nothing to failure.</p>}
+            <Button variant="primary" big onClick={() => router.push(startHref(session.id, "full", deload))}>
+              Start
+            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={() => router.push(`/train/session?id=${session.id}&v=short`)} disabled={session.fullMin === session.shortMin}>
+                Short Day ({session.shortMin} min)
               </Button>
-              <div className="grid grid-cols-2 gap-2">
-                <Button onClick={() => router.push(`/train/session?id=${session.id}&v=short`)} disabled={session.fullMin === session.shortMin}>
-                  Short Day ({session.shortMin} min)
-                </Button>
-                <Button onClick={() => router.push(`/train/session?id=${defaultEasy(session.id)}&v=easy`)}>Easy Day</Button>
-              </div>
-              <LinkButton href={`/train/session?id=${session.id}`}>See every move</LinkButton>
-              {plan.alternative && (
-                <LinkButton href={`/train/session?id=${plan.alternative}`}>Or: {sessionLabel(sessions.find((s) => s.id === plan.alternative)!)}</LinkButton>
-              )}
+              <Button onClick={() => router.push(`/train/session?id=${defaultEasy(session.id)}&v=easy`)}>Easy Day</Button>
             </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <p className="text-2xl font-bold">Rest day</p>
-              <LinkButton href="/train/session?id=DAILY10" variant="primary" big>
-                Optional: Daily 10
-              </LinkButton>
-            </div>
-          )}
-        </Card>
-      )}
+            <LinkButton href={`/train/session?id=${session.id}`}>See every move</LinkButton>
+            {plan.alternative && (
+              <LinkButton href={`/train/session?id=${plan.alternative}`}>Or: {sessionLabel(sessions.find((s) => s.id === plan.alternative)!)}</LinkButton>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <p className="text-2xl font-bold">Rest day</p>
+            <LinkButton href="/train/session?id=DAILY10" variant="primary" big>
+              Optional: Daily 10
+            </LinkButton>
+          </div>
+        )}
+      </Card>
 
       <ReadinessCard />
 

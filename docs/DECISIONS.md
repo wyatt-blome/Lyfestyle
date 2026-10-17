@@ -132,3 +132,30 @@ Sleep, soreness and energy are each 1–5, and soreness is labeled "Very sore �
 ## P3-12. Loose ends fixed on merge
 The add-entry form now keeps `source` and `barcode` from a USDA or Open Food Facts preset. The service worker sends `/api/*` network-only, so food lookups are never cached.
 
+
+# Phase 4 (sync, push, polish)
+
+## D22. Sync: one Supabase table, plain REST, last write wins
+Sync is off unless `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set and you sign in with a magic link (Settings → Sync).
+- **Storage:** every synced record goes in `public.records` (`supabase/schema.sql`): user, table, id, the record as JSON, `updated_at` and `deleted_at`. Row-level security limits each user to their own rows, and there is no delete policy because deletes are soft.
+- **Conflicts:** a trigger keeps the newer row when an older write arrives (last write wins on the record's `updatedAt`). It stamps `synced_at` from the server clock, which is the pull cursor, with a 5 s overlap so late commits aren't missed.
+- **Each run:** push the rows changed here since the last push, then pull and apply only strictly newer copies (ties keep the local one).
+- **What stays local:** `kv` (timers, drafts, swaps). Tokens and cursors live in localStorage, so they never end up in a backup file and a restored backup can't carry another device's cursors.
+- **When it runs:** on open, every 5 min, on returning to the app and on reconnecting. When a free project is paused, sync says how to restore it.
+- **No client library:** `@supabase/supabase-js` is over 100 kB (D21), so this uses `fetch`.
+
+## D23. Background reminders: VAPID web push with no push library
+`src/lib/webpush.ts` builds the VAPID JWT (ES256) and the aes128gcm encryption with `node:crypto`. It is checked against the RFC 8291 example.
+- **Scheduling:** the device posts its whole reminder schedule (halfway, target, eating window closes in 30 min) with its push subscription to `/api/push/subscribe`, which replaces that device's pending jobs in Supabase (`supabase/push.sql`).
+- **Sending:** `pg_cron` checks every minute and calls `/api/push/dispatch` (bearer secret) only when a job is due. Vercel Hobby cron runs once a day, so it can't do this; any external minute cron works instead.
+- **Abuse limit:** subscribe only accepts real push-service hosts. It is otherwise open, which is acceptable for a personal app: a stranger could at most push to their own browser.
+- **Late or failed sends:** errors are retried for 15 min. Jobs more than an hour late (after a paused project) are dropped rather than sent in a burst.
+- **iPhone:** it needs the app on the Home Screen and iOS 16.4+. Settings explains that.
+- **In-app reminders** (D11) keep working either way. Notification tags differ, so a double notification is possible on Android when the app is in the background, and that's accepted.
+
+Setup is in `docs/PUSH.md`.
+
+## D24. Polish: accessibility and performance
+- **Accessibility:** Lighthouse scores 100 on every screen tested. Tap targets are ≥ 48 px, timers have `role="timer"`, toasts are `aria-live`, scales and choices use `aria-pressed`/`radio`, charts have text alternatives, and reduced motion is respected.
+- **Performance:** screens that read IndexedDB render their data-driven parts together once the data is in (a few ms), so nothing jumps as it arrives (layout shift dropped from up to 0.93 to 0). Lighthouse mobile scores for a returning user: Home 95–98, Fast 96, Train 99, Log 97. The very first visit scores lower (Home 87, Train 80) because the welcome sheet is the largest paint and appears after the database opens.
+- **PWA:** Lighthouse 12 no longer has a PWA category. Installability was checked directly instead: the manifest, maskable icons, a service worker scoped to `/`, and every screen opening offline (tested in Chromium).

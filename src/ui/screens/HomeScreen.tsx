@@ -23,10 +23,13 @@ export function HomeScreen() {
   const fast = useActiveFast();
   const plan = useTodayPlan(settings, now);
   const { requestEnd } = useFastFlows();
-  const firstUse = useLiveQuery(async () => (await db().fasts.orderBy("startAt").first())?.createdAt, []);
+  // null = no fasts yet (useLiveQuery returns undefined only while loading).
+  const firstUse = useLiveQuery(async () => (await db().fasts.orderBy("startAt").first())?.createdAt ?? null, []);
 
   const protocol = fast?.protocol ?? settings?.defaultProtocol ?? "16:8";
   const teaser = cardsFor(whyCards, protocolKeys(protocol, fast?.targetHours ?? protocolDef(protocol).targetHours))[0];
+
+  const loading = !settings || fast === undefined || !plan || firstUse === undefined;
 
   return (
     <main className="mx-auto flex max-w-xl flex-col gap-4 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-safe">
@@ -37,52 +40,57 @@ export function HomeScreen() {
         </Link>
       </header>
 
-      {settings && backupDue(settings.lastBackupAt, firstUse, now) && (
-        <Notice tone="info">
-          No backup in 7+ days.{" "}
-          <Link href="/settings#backup" className="underline">
-            Export a backup
-          </Link>
-        </Notice>
+      {/* Everything below reads IndexedDB; it renders together so nothing jumps as it arrives. */}
+      {!loading && (
+        <>
+          {settings && backupDue(settings.lastBackupAt, firstUse ?? undefined, now) && (
+            <Notice tone="info">
+              No backup in 7+ days.{" "}
+              <Link href="/settings#backup" className="underline">
+                Export a backup
+              </Link>
+            </Notice>
+          )}
+
+          <Card>
+            {fast ? (
+              <ActiveFast fastNow={now} />
+            ) : (
+              <div className="flex flex-col items-center gap-3 py-2 text-center">
+                <p className="text-muted">Not fasting</p>
+                <p className="text-3xl font-bold">{settings ? protocolDef(settings.defaultProtocol).label : "16:8"} next</p>
+                <LinkButton href="/fast" variant="primary" big className="w-full">
+                  Start a fast
+                </LinkButton>
+              </div>
+            )}
+            {fast && (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <LinkButton href="/fast">Details</LinkButton>
+                <button
+                  type="button"
+                  className="min-h-12 rounded-2xl border border-line bg-surface-2 text-lg"
+                  onClick={() => requestEnd(fast)}
+                >
+                  End fast
+                </button>
+              </div>
+            )}
+          </Card>
+
+          <LinkButton href="/train" variant="primary" big className="min-h-20 text-2xl">
+            ⚡ Quick 20
+          </LinkButton>
+
+          {plan && <TodayCard plan={plan} fast={fast} now={now} />}
+
+          <Card title={fast ? "Fast-safe drinks" : "Quick add"}>
+            <QuickDrinks />
+          </Card>
+
+          {teaser && <WhyTeaser card={teaser} />}
+        </>
       )}
-
-      <Card>
-        {fast ? (
-          <ActiveFast fastNow={now} />
-        ) : (
-          <div className="flex flex-col items-center gap-3 py-2 text-center">
-            <p className="text-muted">Not fasting</p>
-            <p className="text-3xl font-bold">{settings ? protocolDef(settings.defaultProtocol).label : "16:8"} next</p>
-            <LinkButton href="/fast" variant="primary" big className="w-full">
-              Start a fast
-            </LinkButton>
-          </div>
-        )}
-        {fast && (
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <LinkButton href="/fast">Details</LinkButton>
-            <button
-              type="button"
-              className="min-h-12 rounded-2xl border border-line bg-surface-2 text-lg"
-              onClick={() => requestEnd(fast)}
-            >
-              End fast
-            </button>
-          </div>
-        )}
-      </Card>
-
-      <LinkButton href="/train" variant="primary" big className="min-h-20 text-2xl">
-        ⚡ Quick 20
-      </LinkButton>
-
-      {plan && <TodayCard plan={plan} fast={fast} now={now} />}
-
-      <Card title={fast ? "Fast-safe drinks" : "Quick add"}>
-        <QuickDrinks />
-      </Card>
-
-      {teaser && <WhyTeaser card={teaser} />}
     </main>
   );
 }
