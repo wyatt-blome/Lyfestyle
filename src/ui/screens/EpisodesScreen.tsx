@@ -18,7 +18,7 @@ export function EpisodesScreen() {
     <Page title="Episodes" back="/why">
       <p className="text-muted">
         {SOURCE_LABEL}. Links open the official Diary of a CEO YouTube channel; feed-only episodes are in the{" "}
-        <a href={DOAC_RSS} className="text-info underline" target="_blank" rel="noreferrer">
+        <a href={DOAC_RSS} className="btn inline-flex min-h-12 items-center text-info underline" target="_blank" rel="noreferrer">
           official podcast feed
         </a>
         .
@@ -52,7 +52,7 @@ function EpisodeCard({ episode: e, note }: { episode: Episode; note?: EpisodeNot
               return (
                 <li key={c.t}>
                   {href ? (
-                    <a href={href} target="_blank" rel="noreferrer" className="text-info underline">
+                    <a href={href} target="_blank" rel="noreferrer" className="btn inline-flex min-h-12 items-center text-info underline">
                       <span className="tabular">{c.t}</span> {c.title}
                     </a>
                   ) : (
@@ -66,7 +66,7 @@ function EpisodeCard({ episode: e, note }: { episode: Episode; note?: EpisodeNot
           </ul>
         )}
         {e.url ? (
-          <a href={e.url} target="_blank" rel="noreferrer" className="text-info underline">
+          <a href={e.url} target="_blank" rel="noreferrer" className="btn inline-flex min-h-12 items-center text-info underline">
             Open episode
           </a>
         ) : (

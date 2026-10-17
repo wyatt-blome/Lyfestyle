@@ -159,3 +159,49 @@ Setup is in `docs/PUSH.md`.
 - **Accessibility:** Lighthouse scores 100 on every screen tested. Tap targets are ≥ 48 px, timers have `role="timer"`, toasts are `aria-live`, scales and choices use `aria-pressed`/`radio`, charts have text alternatives, and reduced motion is respected.
 - **Performance:** screens that read IndexedDB render their data-driven parts together once the data is in (a few ms), so nothing jumps as it arrives (layout shift dropped from up to 0.93 to 0). Lighthouse mobile scores for a returning user: Home 95–98, Fast 96, Train 99, Log 97. The very first visit scores lower (Home 87, Train 80) because the welcome sheet is the largest paint and appears after the database opens.
 - **PWA:** Lighthouse 12 no longer has a PWA category. Installability was checked directly instead: the manifest, maskable icons, a service worker scoped to `/`, and every screen opening offline (tested in Chromium).
+
+# Review round 1 (four parallel reviewers: spec, training, fasting/data, security)
+
+## D25. Browser tests without a new package dependency
+`e2e/` holds Playwright tests for every acceptance criterion in `docs/SPEC.md` Part 8, plus regressions found in review. `npm run test:e2e` installs Playwright into a git-ignored `.e2e-tools` folder rather than `package.json` (the 100 kB rule, D21), starts `next start`, and runs the suite on a Pixel 7 screen with the Denver time zone and a fake clock. CI runs it after the build.
+
+## D26. Training fixes
+- **Early ends:** ending a run early now saves only what was finished, and the summary says "Ended early" (`finishedSegments`, `endedEarly`). Before, it saved a full session.
+- **Long-fast gate:** the gate (only M, Z or the Daily 10 past 24 h fasted) now covers every way in: the 4×4, the logger, follow-alongs, Resume links and direct URLs (`LongFastBlock`). 40 lb carries drop out of M and Z during it, and a notice says so. Saturday's alternative Quick 20 is hidden.
+- **Deloads:** on a deload day Quick 20s run Q6, the S&S deload, so Q5 is never offered. The 4×4 does 2 intervals. Nothing moves a stage, and neither does a Short Day 4×4.
+- **Stages set the dose:** the goblet squat's reps, the carry's distance and the press ladder now follow the stage, not just its label. Quick 20 lists show their own template unchanged, matching the runner. Dumbbell lifts progress through your dumbbells and kettlebell lifts through your bells.
+- **Duplicate taps:** saving is idempotent per session (template + start time), and Save is disabled while it runs. Next only ends the segment that was on screen, so a double tap never skips two.
+- **Heart rate:** the 4×4 last interval's HR can be entered during the cool-down. The work target follows the stage (~85%, then 85–90%, then 90–95%).
+- **Next-move preview:** it no longer looks past the end of a block. Holds done per side preview side 2.
+- **Tabata timing:** each Tabata is a full 4:00, because the last 10 s rest now runs into the block rest.
+- **Logger drafts:** a draft older than 12 h is dropped. A draft for another session is never silently replaced: you're asked to resume or discard it.
+- **Prefill:** after a load increase, the logger starts at the bottom of the rep range.
+- **Friday:** after Friday's Quick 20 the app goes straight to the short Daily 10 (spec: "20 + 5 min mobility").
+
+## D27. Norwegian 4×4 minutes shown as the timer runs them
+The spec table lists 38 / 24 min, but its own parts add up to 40 (10 + 4 × 4 + 3 × 3 + 5) and 21 (6 + 2 × 4 + 3 + 4). The session shows 40 / 21 so the minutes on screen match the clock.
+
+## D28. Fasting and data fixes
+- **Custom hours:** they're parsed leniently ("16,5", "36 h") and can never be saved as NaN.
+- **Overlaps:** fasts can't overlap.
+- **Future entries:** a future-dated entry doesn't offer to end the fast.
+- **History edits:** they only change the fields you edited.
+- **Exports:** an export stamps its own backup time.
+- **Long fasts:** the extended warning also shows for a daily fast left running past 24 h. A running fast can be discarded.
+- **Eating window:** "window closes in 30 min" is skipped once the next fast has started.
+- **Time zone:** it follows the device.
+- **Charts:** they keep the last reading per day.
+- **Removed:** the Units setting did nothing, so it's gone.
+- **Insights:** they say "Linked episode" so they never read like a guest quote.
+
+## D29. Sync and push fixes
+- **Pull paging:** it pages on (synced_at, table, id), so thousands of rows synced in one go can't stall it.
+- **Unique-key clashes:** a readiness day, a progression row or an episode note recorded on two devices resolves by last write wins, and one bad row can't stop a run.
+- **First sync on a new device:** it pulls before it pushes, and untouched default settings carry an epoch timestamp, so a new phone can't overwrite the real settings.
+- **Import and wipe:** both reset the sync cursors.
+- **Sign-in links:** they're accepted only on the device that asked, within an hour. Signing out also revokes the session.
+- **Push:** it accepts only real push-service endpoints (default port, no credentials, a valid P-256 key). Dispatch claims jobs before sending, sends in parallel within a deadline, and retries up to 3 times. `VAPID_SUBJECT` must be `mailto:` or `https:`, and the USDA key travels in a header.
+- **Service worker:** it never caches Supabase traffic. Pages are revised per deployment, not per commit, so a redeploy after changing environment variables can't break offline. Demo media is purged first when storage runs short.
+
+## D30. Tap targets
+Every standalone link is now at least 48 px tall: why-card chapter links, episode and Credits links, Program days, swap links, Resume, and Export a backup. So are the day-timeline markers, as a 48 px target around a small dot.

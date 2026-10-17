@@ -30,4 +30,10 @@ describe("logger rows", () => {
     expect(squats[1].reps).toBe(7);
     expect(squats[1].loadLb).toBe(40);
   });
+
+  it("starts at the bottom of the range after a load increase", () => {
+    const rows2 = buildRows([{ label: "A", rounds: 1, items: [{ exerciseId: "db-bench-press", reps: "6-10", loadLb: 30 }] }]);
+    const last = { sets: [{ exerciseId: "db-bench-press", setIndex: 0, reps: 10, loadLb: 25, done: true }] } as WorkoutLog;
+    expect(prefill(rows2, last)[0]).toMatchObject({ reps: 6, loadLb: 30 });
+  });
 });

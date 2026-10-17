@@ -204,7 +204,7 @@ function ScanTab({ online, onPick }: { online: boolean; onPick: (p: Partial<Inta
         </div>
         <p className="text-sm text-muted">
           {OFF_CREDIT}{" "}
-          <a href={`https://world.openfoodfacts.org/product/${result.code}`} target="_blank" rel="noreferrer" className="text-info underline">
+          <a href={`https://world.openfoodfacts.org/product/${result.code}`} target="_blank" rel="noreferrer" className="btn inline-flex min-h-12 items-center text-info underline">
             View on Open Food Facts
           </a>
         </p>

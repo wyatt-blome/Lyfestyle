@@ -146,6 +146,18 @@ describe("chart series", () => {
       { date: "2026-10-16", value: 200 },
     ]);
   });
+
+  it("keeps the last reading of each day", () => {
+    const m: BodyMetric[] = [
+      { ...base, id: id(), at: "2026-10-16T20:00:00Z", weightLb: 199 },
+      { ...base, id: id(), at: "2026-10-16T14:00:00Z", weightLb: 201 },
+      { ...base, id: id(), at: "2026-10-15T14:00:00Z", weightLb: 202 },
+    ];
+    expect(metricSeries(m, "weightLb", TZ)).toEqual([
+      { date: "2026-10-15", value: 202 },
+      { date: "2026-10-16", value: 199 },
+    ]);
+  });
 });
 
 describe("weekly summary", () => {

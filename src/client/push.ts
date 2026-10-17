@@ -3,7 +3,7 @@
 // and hands them, with its push subscription, to /api/push/subscribe; a cron-driven dispatcher
 // sends them when due. In-app reminders (reminders.tsx) keep working whether or not this is on.
 import { useEffect, useState } from "react";
-import { windowHoursFor } from "@/lib/fasting";
+import { windowHoursFor, windowSuperseded } from "@/lib/fasting";
 import { HOUR_MS, MIN_MS } from "@/lib/time";
 import type { Fast, Settings } from "@/lib/types";
 import { useActiveFast, useFasts } from "./fasts";
@@ -188,8 +188,8 @@ export interface ReminderJob {
 
 /**
  * The push reminders still to come for these fasts: halfway and target for a running fast, and
- * "eating window closes in 30 min" (end + window − 30 min) for an ended one, each only if its
- * toggle is on. Same wording as the in-app reminders.
+ * "eating window closes in 30 min" (end + window − 30 min) for an ended one unless a later fast
+ * has already started, each only if its toggle is on. Same wording as the in-app reminders.
  */
 export function reminderJobs(fasts: (Fast | null | undefined)[], settings: Settings, now = Date.now()): ReminderJob[] {
   const n = settings.notifications;
@@ -206,7 +206,7 @@ export function reminderJobs(fasts: (Fast | null | undefined)[], settings: Setti
     if (f.status === "active" && !f.endAt) {
       if (n.halfway) add(f, "halfway", start + target / 2, `Halfway through your ${f.protocol} fast.`);
       if (n.target) add(f, "target", start + target, `Target reached: ${f.targetHours} h.`);
-    } else if (f.endAt && n.windowClosing) {
+    } else if (f.endAt && n.windowClosing && !windowSuperseded(f, fasts)) {
       const w = windowHoursFor(f);
       if (w) add(f, "window", Date.parse(f.endAt) + w * HOUR_MS - 30 * MIN_MS, "Eating window closes in 30 min.");
     }

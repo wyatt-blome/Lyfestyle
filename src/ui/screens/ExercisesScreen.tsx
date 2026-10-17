@@ -79,7 +79,7 @@ export function ExerciseDetailScreen({ id }: { id: string }) {
           <ul className="flex flex-col gap-2">
             {e.swapIds.map((s) => (
               <li key={s}>
-                <Link href={`/train/exercises/${s}`} className="text-info underline">
+                <Link href={`/train/exercises/${s}`} className="btn inline-flex min-h-12 items-center text-info underline">
                   {exerciseById.get(s)?.name ?? s}
                 </Link>
               </li>

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { sessions } from "@/seed/sessions";
 import {
   advance,
+  endedEarly,
+  finishedSegments,
   build4x4,
   buildQuick20,
   bump,
@@ -140,5 +142,32 @@ describe("follow-along", () => {
       { label: "M", items: [{ exerciseId: "couch-stretch", sets: 2, seconds: 60, perSide: true }, { exerciseId: "cat-camel", reps: 8 }] },
     ]);
     expect(segs.map((s) => s.durationSec)).toEqual([60, 60, 60, 60, null]);
+  });
+});
+
+describe("review fixes", () => {
+  const t0 = 1_000_000;
+  it("knows a run ended early and counts only finished work", () => {
+    const segs = buildQuick20(T("Q1"));
+    const run = endRun(createRun(segs, t0), t0 + 5 * MIN);
+    expect(endedEarly(run)).toBe(true);
+    expect(finishedSegments(run, t0 + 30 * MIN).filter((s) => s.kind === "work")).toHaveLength(2);
+    const full = endRun(createRun(segs, t0), t0 + 21 * MIN);
+    expect(endedEarly(full)).toBe(false);
+    expect(finishedSegments(full, t0 + 30 * MIN).filter((s) => s.kind === "work")).toHaveLength(15);
+  });
+
+  it("previews the next block, not the next move in the cycle, at block ends", () => {
+    const q1 = buildQuick20(T("Q1")).filter((s) => s.kind === "work");
+    expect(q1[14].items).toHaveLength(1);
+    const q5 = buildQuick20(T("Q5")).filter((s) => s.mode === "TABATA");
+    expect(q5[23].items).toHaveLength(1);
+    expect(q5[7].items[1].exerciseId).toBe("kb-rack-lunge");
+  });
+
+  it("previews side 2 of a per-side hold", () => {
+    const segs = followAlong([{ label: "M", items: [{ exerciseId: "couch-stretch", seconds: 60, perSide: true }, { exerciseId: "cat-camel", reps: 8 }] }]);
+    expect(segs[0].items.map((i) => i.exerciseId)).toEqual(["couch-stretch", "couch-stretch"]);
+    expect(segs[1].items.map((i) => i.exerciseId)).toEqual(["couch-stretch", "cat-camel"]);
   });
 });

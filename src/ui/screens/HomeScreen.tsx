@@ -46,7 +46,7 @@ export function HomeScreen() {
           {settings && backupDue(settings.lastBackupAt, firstUse ?? undefined, now) && (
             <Notice tone="info">
               No backup in 7+ days.{" "}
-              <Link href="/settings#backup" className="underline">
+              <Link href="/settings#backup" className="btn inline-flex min-h-12 items-center font-semibold underline">
                 Export a backup
               </Link>
             </Notice>
@@ -78,7 +78,7 @@ export function HomeScreen() {
             )}
           </Card>
 
-          <LinkButton href="/train" variant="primary" big className="min-h-20 text-2xl">
+          <LinkButton href="/train/quick" variant="primary" big className="min-h-20 text-2xl">
             ⚡ Quick 20
           </LinkButton>
 

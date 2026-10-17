@@ -28,7 +28,8 @@ export function WhyScreen() {
       </Link>
       {whyCards.map((c) => (
         <div id={c.id} key={c.id} className="scroll-mt-4">
-          <WhyCardView card={c} defaultOpen={c.id === hash} />
+          {/* Re-mount when the link targets this card, so it opens. */}
+          <WhyCardView key={c.id === hash ? "open" : "closed"} card={c} defaultOpen={c.id === hash} />
         </div>
       ))}
     </Page>

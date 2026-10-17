@@ -89,8 +89,8 @@ export function BarChart({
           onBlur={() => setActive(null)}
           className="touch-pan-y select-none"
         >
-          {ticks.map((t) => (
-            <g key={t}>
+          {ticks.map((t, i) => (
+            <g key={`${t}-${i}`}>
               <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke="var(--color-line)" strokeWidth="1" />
               <text x={PAD.left - 6} y={y(t) + 4} textAnchor="end" fontSize="12" fill="var(--color-muted)" className="tabular">
                 {fmt(t)}

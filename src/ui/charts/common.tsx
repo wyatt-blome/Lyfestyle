@@ -78,8 +78,8 @@ export function ChartFrame({ title, summary, readout, legend, table, children, e
           <caption>{title}</caption>
           <thead>
             <tr>
-              {table.head.map((h) => (
-                <th key={h} scope="col">
+              {table.head.map((h, i) => (
+                <th key={`${h}-${i}`} scope="col">
                   {h}
                 </th>
               ))}

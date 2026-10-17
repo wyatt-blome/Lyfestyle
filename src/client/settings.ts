@@ -4,6 +4,8 @@ import { db } from "@/db/db";
 import { dateKey, deviceTz } from "@/lib/time";
 import type { Settings } from "@/lib/types";
 
+export const SETTINGS_EPOCH = "1970-01-01T00:00:00.000Z";
+
 export function defaultSettings(now = new Date()): Settings {
   return {
     id: "settings",
@@ -19,7 +21,9 @@ export function defaultSettings(now = new Date()): Settings {
     dumbbellsLb: [],
     notifications: { halfway: true, target: true, windowClosing: true, sound: true, voice: false, vibrate: true },
     onboarded: false,
-    updatedAt: now.toISOString(),
+    // Untouched defaults are older than anything real, so a fresh device's first sync never
+    // overwrites the settings from another device. saveSettings stamps the real time.
+    updatedAt: SETTINGS_EPOCH,
   };
 }
 

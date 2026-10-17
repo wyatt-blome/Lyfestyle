@@ -29,24 +29,16 @@ export function SettingsScreen() {
   return (
     <Page title="Settings" back="/more">
       <Card title="You">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Age" hint={`HRmax ≈ ${hrMax} bpm`}>
-            <input
-              inputMode="numeric"
-              defaultValue={s.age}
-              onBlur={(e) => {
-                const n = Number(e.target.value);
-                if (n > 10 && n < 110) void saveSettings({ age: n });
-              }}
-            />
-          </Field>
-          <Field label="Units">
-            <select value={s.units} onChange={(e) => void saveSettings({ units: e.target.value as "imperial" | "metric" })}>
-              <option value="imperial">lb / oz / in</option>
-              <option value="metric">kg / ml / cm</option>
-            </select>
-          </Field>
-        </div>
+        <Field label="Age" hint={`HRmax ≈ ${hrMax} bpm`}>
+          <input
+            inputMode="numeric"
+            defaultValue={s.age}
+            onBlur={(e) => {
+              const n = Number(e.target.value);
+              if (n > 10 && n < 110) void saveSettings({ age: n });
+            }}
+          />
+        </Field>
         <p className="mt-2 text-sm text-muted">Time zone: {s.tz} (from this device)</p>
       </Card>
 

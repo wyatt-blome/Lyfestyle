@@ -42,7 +42,9 @@ export function expandTimer(spec: TimerSpec, items: SessionItem[], label: string
       const slot = spec.intervalSec ?? 60;
       const n = Math.round((spec.durationSec ?? 900) / slot);
       for (let k = 0; k < n; k++) {
-        out.push({ kind: "work", label, durationSec: slot, items: [pick(k), pick(k + 1)], round: k + 1, rounds: n, mode: "EMOM" });
+        // The last minute previews whatever follows the block, not the next move in the cycle.
+        const items = k < n - 1 ? [pick(k), pick(k + 1)] : [pick(k)];
+        out.push({ kind: "work", label, durationSec: slot, items, round: k + 1, rounds: n, mode: "EMOM" });
       }
       return out;
     }
@@ -52,25 +54,31 @@ export function expandTimer(spec: TimerSpec, items: SessionItem[], label: string
     case "TABATA": {
       const blocks = spec.blocks ?? 1;
       const rounds = spec.rounds ?? 8;
+      // One move per block; a final block with spare moves alternates them (push-up / dead bug).
+      const spare = items.slice(blocks - 1);
+      const moveAt = (b: number, r: number) => (b < blocks - 1 ? items[b] : spare[r % spare.length]);
       for (let b = 0; b < blocks; b++) {
-        // One move per block; a final block with spare moves alternates them (push-up / dead bug).
-        const spare = items.slice(blocks - 1);
+        const lastBlock = b === blocks - 1;
         for (let r = 0; r < rounds; r++) {
-          const move = b < blocks - 1 ? items[b] : spare[r % spare.length];
-          const next = r < rounds - 1 ? (b < blocks - 1 ? items[b] : spare[(r + 1) % spare.length]) : items[b + 1];
+          const lastRound = r === rounds - 1;
+          // Within the block: the next round's move. After the block: the next block's move, or
+          // nothing after the final block (what follows comes from the next segment).
+          const next = !lastRound ? moveAt(b, r + 1) : !lastBlock ? moveAt(b + 1, 0) : undefined;
           out.push({
             kind: "work",
             label: `${label} · block ${b + 1}`,
             durationSec: spec.workSec ?? 20,
-            items: next ? [move, next] : [move],
+            items: next ? [moveAt(b, r), next] : [moveAt(b, r)],
             round: r + 1,
             rounds,
             mode: "TABATA",
           });
-          if (r < rounds - 1) out.push({ kind: "rest", label: "Rest", durationSec: spec.restSec ?? 10, items: next ? [next] : [], round: r + 1, rounds });
+          // A Tabata is 8 × (20 on, 10 off) = 4:00; the final 10 s rest runs into the block rest.
+          if (!lastRound) out.push({ kind: "rest", label: "Rest", durationSec: spec.restSec ?? 10, items: [moveAt(b, r + 1)], round: r + 1, rounds });
         }
-        if (b < blocks - 1) {
-          out.push({ kind: "rest", label: "Block rest", durationSec: spec.blockRestSec ?? 60, items: [items[b + 1] ?? spare[0]] });
+        if (!lastBlock) {
+          const rest = (spec.restSec ?? 10) + (spec.blockRestSec ?? 60);
+          out.push({ kind: "rest", label: "Block rest", durationSec: rest, items: [moveAt(b + 1, 0)] });
         }
       }
       return out;
@@ -118,7 +126,9 @@ export function followAlong(blocks: Pick<SessionBlock, "label" | "items" | "roun
           if (item.seconds) {
             const sides = item.perSide ? 2 : 1;
             for (let side = 0; side < sides; side++) {
-              out.push({ kind: "work", label: sides > 1 ? `${label} · side ${side + 1}` : label, durationSec: item.seconds, items, round: s + 1, rounds: sets });
+              // Side 1 previews side 2 of the same move.
+              const preview = side < sides - 1 ? [item, item] : items;
+              out.push({ kind: "work", label: sides > 1 ? `${label} · side ${side + 1}` : label, durationSec: item.seconds, items: preview, round: s + 1, rounds: sets });
             }
           } else {
             out.push({ kind: "work", label, durationSec: null, items, round: s + 1, rounds: sets });
@@ -278,6 +288,22 @@ export function endRun(run: Run, now: number): Run {
   if (run.endedAt) return run;
   const r = isPaused(run) ? resume(run, now) : run;
   return { ...r, endedAt: now };
+}
+
+/** Where the run stood when it was ended (or now): the position ignoring the end itself. */
+export function finalPosition(run: Run, now: number): Position {
+  return position({ ...run, endedAt: undefined }, run.endedAt ?? now);
+}
+
+/** Segments fully finished before the run ended. */
+export function finishedSegments(run: Run, now: number): Segment[] {
+  const p = finalPosition(run, now);
+  return run.segments.slice(0, p.done ? run.segments.length : p.index);
+}
+
+/** True when End was tapped before the program ran out. */
+export function endedEarly(run: Run): boolean {
+  return !!run.endedAt && !finalPosition(run, run.endedAt).done;
 }
 
 export function bump(run: Run, key: keyof Run["counters"], by = 1): Run {

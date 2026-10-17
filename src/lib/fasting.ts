@@ -1,6 +1,16 @@
 // Fasting rules (spec Part 3). Pure: every time is derived from stored timestamps and `now`.
 import type { Fast, ProtocolId, SessionId } from "./types";
-import { HOUR_MS, MIN_MS, addDays, dateKey, daysBetween } from "./time";
+import {
+  HOUR_MS,
+  MIN_MS,
+  addDays,
+  dateKey,
+  daysBetween,
+  deviceTz,
+  formatDayTime,
+  fromLocalInput,
+  toLocalInput,
+} from "./time";
 
 export interface ProtocolDef {
   id: ProtocolId;
@@ -35,7 +45,16 @@ export function targetHoursFor(id: ProtocolId, customHours?: number): number {
 }
 
 function clampHours(h: number): number {
+  if (!Number.isFinite(h)) return 16;
   return Math.min(120, Math.max(1, Math.round(h * 4) / 4));
+}
+
+/** Lenient custom-hours input: "16", "16.5", "16,5", "36 h", "20 hours". Null when unparseable. */
+export function parseHours(input: string): number | null {
+  const m = /^(\d+(?:[.,]\d+)?)\s*(?:h|hr|hrs|hour|hours)?$/i.exec(input.trim());
+  if (!m) return null;
+  const n = Number(m[1].replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 // ---------- Safety ----------
@@ -149,6 +168,59 @@ export function validateTimes(startAt: string, endAt: string | undefined, now: n
   return null;
 }
 
+/**
+ * The start/end edits from two datetime-local fields, keeping only the ones that differ from the
+ * stored time at minute precision. An untouched field is left alone, so its seconds survive and
+ * a completed fast can't flip to broken just by saving.
+ */
+export function editedTimes(
+  fast: Pick<Fast, "startAt" | "endAt">,
+  startLocal: string,
+  endLocal: string,
+): { startAt?: string; endAt?: string } {
+  const out: { startAt?: string; endAt?: string } = {};
+  if (startLocal !== toLocalInput(fast.startAt)) out.startAt = fromLocalInput(startLocal);
+  if (endLocal !== toLocalInput(fast.endAt ?? fast.startAt)) out.endAt = fromLocalInput(endLocal);
+  return out;
+}
+
+/**
+ * Fasts can't overlap. Checks a start (and end, for an ended fast) against every other fast and
+ * names the clash, so a backdated or edited start can't run into the fast before it.
+ */
+export function overlapError(
+  startAt: string,
+  endAt: string | undefined,
+  fasts: Fast[],
+  selfId?: string,
+  tz: string = deviceTz(),
+): string | null {
+  const s = Date.parse(startAt);
+  const e = endAt ? Date.parse(endAt) : Infinity;
+  let clash: Fast | undefined;
+  for (const o of fasts) {
+    if (o.deletedAt || o.id === selfId) continue;
+    const os = Date.parse(o.startAt);
+    const oe = o.endAt ? Date.parse(o.endAt) : Infinity;
+    if (os < e && oe > s && (!clash || os > Date.parse(clash.startAt))) clash = o;
+  }
+  if (!clash) return null;
+  if (!clash.endAt) return `That overlaps your current fast, which started at ${formatDayTime(clash.startAt, tz)}.`;
+  if (Date.parse(clash.startAt) <= s) {
+    return `That overlaps your previous fast, which ended at ${formatDayTime(clash.endAt, tz)}.`;
+  }
+  return `That overlaps your next fast, which started at ${formatDayTime(clash.startAt, tz)}.`;
+}
+
+/**
+ * Whether an entry at `at` belongs to (and can break) a fast that started at `fastStartAt`:
+ * at or after the start, and not in the future (a future entry can't end a fast yet).
+ */
+export function entryInFast(fastStartAt: string, at: string, now: number): boolean {
+  const t = Date.parse(at);
+  return t >= Date.parse(fastStartAt) && t <= now + MIN_MS;
+}
+
 // ---------- Reminders ----------
 
 export type ReminderKind = "halfway" | "target" | "window";
@@ -174,7 +246,7 @@ export function dueReminders(fasts: Fast[], now: number): DueReminder[] {
       if (!fired.has("target") && now >= start + targetMs) {
         out.push({ kind: "target", fastId: f.id, message: `Target reached: ${f.targetHours} h.` });
       }
-    } else if (f.endAt && !fired.has("window")) {
+    } else if (f.endAt && !fired.has("window") && !windowSuperseded(f, fasts)) {
       const w = windowHoursFor(f);
       if (w) {
         const closes = Date.parse(f.endAt) + w * HOUR_MS;
@@ -185,6 +257,13 @@ export function dueReminders(fasts: Fast[], now: number): DueReminder[] {
     }
   }
   return out;
+}
+
+/** True when another fast started after this one ended, so its eating window is already over. */
+export function windowSuperseded(f: Pick<Fast, "id" | "endAt">, fasts: (Fast | null | undefined)[]): boolean {
+  if (!f.endAt) return false;
+  const end = Date.parse(f.endAt);
+  return fasts.some((o) => !!o && !o.deletedAt && o.id !== f.id && Date.parse(o.startAt) >= end);
 }
 
 export function windowHoursFor(f: Pick<Fast, "protocol" | "targetHours">): number | undefined {

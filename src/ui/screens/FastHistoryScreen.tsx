@@ -3,8 +3,8 @@ import { useState } from "react";
 import { deleteFast, editFast, useFasts } from "@/client/fasts";
 import { useSettings } from "@/client/settings";
 import { useNow } from "@/client/useNow";
-import { averages, bestStreak, currentStreak, dailyHours, elapsedMs, hitTarget } from "@/lib/fasting";
-import { addDays, dateKey, formatDayTime, formatHours, fromLocalInput, toLocalInput, weekdayOf } from "@/lib/time";
+import { averages, bestStreak, currentStreak, dailyHours, editedTimes, elapsedMs, hitTarget } from "@/lib/fasting";
+import { addDays, dateKey, formatDayTime, formatHours, toLocalInput, weekdayOf } from "@/lib/time";
 import type { Fast } from "@/lib/types";
 import { useFastFlows } from "../FastFlows";
 import { Badge, Button, Card, Field, Page } from "../kit";
@@ -128,7 +128,8 @@ function FastRow({ fast }: { fast: Fast }) {
               variant="primary"
               onClick={async () => {
                 try {
-                  await editFast(fast.id, { startAt: fromLocalInput(s), endAt: fromLocalInput(e) });
+                  const changes = editedTimes(fast, s, e);
+                  if (changes.startAt || changes.endAt) await editFast(fast.id, changes);
                   setEdit(false);
                 } catch (err) {
                   toast((err as Error).message, "bad");

@@ -2,18 +2,27 @@
 // Optional Supabase sync over its REST API (no client library; DECISIONS D21). Off unless
 // NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set and you sign in. The app
 // never waits on it: every screen reads IndexedDB, and sync runs in the background.
+import type { IndexableType } from "dexie";
 import { useEffect, useSyncExternalStore } from "react";
-import { db } from "@/db/db";
+import { db, type FastMoveDB } from "@/db/db";
 import {
   changedSince,
   nextCursor,
+  pageCursor,
+  pendingSignInValid,
+  PULL_PAGE,
+  pullQuery,
   remoteWins,
   SYNC_TABLES,
   syncConfigured,
   toRemote,
+  uniqueConflict,
+  UNIQUE_KEYS,
   type AuthSession,
+  type PageCursor,
   type RemoteRow,
   type Syncable,
+  type SyncTable,
 } from "@/lib/sync";
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -27,6 +36,8 @@ const S_SESSION = "fm.sync.session";
 const S_PUSHED = "fm.sync.pushedAt";
 const S_PULLED = "fm.sync.pulledAt";
 const S_LAST = "fm.sync.last";
+const S_PENDING = "fm.sync.pending";
+const S_EMAIL = "fm.sync.email";
 
 function read<T>(k: string): T | null {
   try {
@@ -101,13 +112,37 @@ export async function sendMagicLink(email: string): Promise<void> {
     body: JSON.stringify({ email, create_user: true }),
   });
   if (!res.ok) throw new Error(await errorText(res));
+  // Only a link this device asked for (within the hour) is accepted on landing.
+  write(S_PENDING, Date.now());
+}
+
+/** True once, if this device requested a magic link less than an hour ago. Clears the marker. */
+export function takePendingSignIn(): boolean {
+  const at = read<number>(S_PENDING);
+  write(S_PENDING, null);
+  return pendingSignInValid(at, Date.now());
+}
+
+/** Forget where push and pull got to, so the next run sends everything and re-reads everything. */
+export function resetSyncCursors(): void {
+  write(S_PUSHED, null);
+  write(S_PULLED, null);
 }
 
 export function saveSession(s: AuthSession): void {
+  const prev = read<AuthSession>(S_SESSION);
+  if (prev) {
+    // Signing in over a session: it may be another account, and we only learn the email later.
+    if (prev.email && !read(S_EMAIL)) write(S_EMAIL, prev.email);
+    resetSyncCursors();
+  }
   write(S_SESSION, s);
 }
 
 export function signOut(): void {
+  const s = read<AuthSession>(S_SESSION);
+  // Best effort: revoke the refresh token on the server too.
+  if (s && SYNC_AVAILABLE) void api("/auth/v1/logout", { method: "POST" }, s.accessToken).catch(() => undefined);
   write(S_SESSION, null);
   write(S_PUSHED, null);
   write(S_PULLED, null);
@@ -155,6 +190,10 @@ export async function fetchEmail(): Promise<void> {
   const res = await api("/auth/v1/user", {}, s.accessToken);
   if (res.ok) {
     const u = (await res.json()) as { email?: string };
+    // Another account than last time: its server data has nothing to do with our cursors.
+    const prevEmail = read<string>(S_EMAIL);
+    if (u.email && prevEmail && prevEmail !== u.email) resetSyncCursors();
+    if (u.email) write(S_EMAIL, u.email);
     write(S_SESSION, { ...s, email: u.email });
   }
 }
@@ -177,52 +216,22 @@ async function runSync(): Promise<void> {
   if (!s) return;
   busy = true;
   emit();
-  const startedAt = new Date().toISOString();
   try {
     const d = db();
-    // Push everything changed here since the last successful push.
     const pushedAt = read<string>(S_PUSHED);
-    const out: RemoteRow[] = [];
-    for (const t of SYNC_TABLES) {
-      const rows = (await d.table(t).toArray()) as Syncable[];
-      for (const r of changedSince(rows, pushedAt)) out.push(toRemote(t, r));
+    let sent = 0;
+    let pull: { received: number; failed: number };
+    if (pushedAt) {
+      sent = await push(d, s.accessToken, pushedAt);
+      pull = await pullAll(d, s.accessToken);
+    } else {
+      // First run on this device (or after an import or wipe): pull first, so its fresh
+      // defaults can't overwrite the real records from another device.
+      pull = await pullAll(d, s.accessToken);
+      sent = await push(d, s.accessToken, null);
     }
-    for (let i = 0; i < out.length; i += 500) {
-      const res = await api(
-        "/rest/v1/records?on_conflict=user_id,tbl,id",
-        { method: "POST", body: JSON.stringify(out.slice(i, i + 500)), headers: { Prefer: "resolution=merge-duplicates,return=minimal" } },
-        s.accessToken,
-      );
-      if (!res.ok) throw new Error(await errorText(res));
-    }
-    write(S_PUSHED, startedAt);
-
-    // Pull everything the server accepted since the last pull; newer copies win.
-    let cursor = read<string>(S_PULLED);
-    let pulled = 0;
-    for (;;) {
-      const q = `/rest/v1/records?select=tbl,id,data,updated_at,synced_at&order=synced_at.asc&limit=1000${cursor ? `&synced_at=gt.${encodeURIComponent(cursor)}` : ""}`;
-      const res = await api(q, {}, s.accessToken);
-      if (!res.ok) throw new Error(await errorText(res));
-      const rows = (await res.json()) as RemoteRow[];
-      for (const r of rows) {
-        if (!(SYNC_TABLES as readonly string[]).includes(r.tbl)) continue;
-        const table = d.table(r.tbl);
-        const local = (await table.get(r.id)) as Syncable | undefined;
-        if (remoteWins(local, r.data)) {
-          await table.put(r.data);
-          pulled++;
-        }
-      }
-      const next = nextCursor(cursor, rows);
-      if (rows.length < 1000 || next === cursor) {
-        cursor = next;
-        break;
-      }
-      cursor = next;
-    }
-    write(S_PULLED, cursor);
-    write(S_LAST, { at: new Date().toISOString(), ok: true, message: `Sent ${out.length}, received ${pulled}` });
+    const msg = `Sent ${sent}, received ${pull.received}${pull.failed ? `, ${pull.failed} couldn't be saved on this device` : ""}`;
+    write(S_LAST, { at: new Date().toISOString(), ok: pull.failed === 0, message: msg });
   } catch (e) {
     const msg = e instanceof TypeError ? "No connection to Supabase." : (e as Error).message;
     write(S_LAST, { at: new Date().toISOString(), ok: false, message: msg });
@@ -230,6 +239,78 @@ async function runSync(): Promise<void> {
     busy = false;
     emit();
   }
+}
+
+/** Push everything changed here since `since` (all rows when null). Returns how many were sent. */
+async function push(d: FastMoveDB, token: string, since: string | null): Promise<number> {
+  const startedAt = new Date().toISOString();
+  const out: RemoteRow[] = [];
+  for (const t of SYNC_TABLES) {
+    const rows = (await d.table(t).toArray()) as Syncable[];
+    for (const r of changedSince(rows, since)) out.push(toRemote(t, r));
+  }
+  for (let i = 0; i < out.length; i += 500) {
+    const res = await api(
+      "/rest/v1/records?on_conflict=user_id,tbl,id",
+      { method: "POST", body: JSON.stringify(out.slice(i, i + 500)), headers: { Prefer: "resolution=merge-duplicates,return=minimal" } },
+      token,
+    );
+    if (!res.ok) throw new Error(await errorText(res));
+  }
+  write(S_PUSHED, startedAt);
+  return out.length;
+}
+
+/**
+ * Pull everything the server accepted since the saved cursor; newer copies win. Pages continue
+ * after the last row read (ties broken by tbl, id); the 5 s overlap only goes into the cursor
+ * saved at the end. A row that can't be saved is counted and skipped, never aborting the run.
+ */
+async function pullAll(d: FastMoveDB, token: string): Promise<{ received: number; failed: number }> {
+  const start = read<string>(S_PULLED);
+  let page: PageCursor | null = null;
+  let latest: string | null = null;
+  let received = 0;
+  let failed = 0;
+  for (;;) {
+    const res = await api(pullQuery(start, page), {}, token);
+    if (!res.ok) throw new Error(await errorText(res));
+    const rows = (await res.json()) as RemoteRow[];
+    for (const r of rows) {
+      if (r.synced_at && (!latest || r.synced_at > latest)) latest = r.synced_at;
+      if (!(SYNC_TABLES as readonly string[]).includes(r.tbl)) continue;
+      try {
+        if (await applyRow(d, r.tbl as SyncTable, r.data)) received++;
+      } catch {
+        failed++;
+      }
+    }
+    const next = pageCursor(rows);
+    if (rows.length < PULL_PAGE || !next) break;
+    page = next;
+  }
+  write(S_PULLED, nextCursor(start, latest ? [{ synced_at: latest }] : []));
+  return { received, failed };
+}
+
+/** Apply one pulled row in a single transaction, resolving unique-key clashes. True if saved. */
+async function applyRow(d: FastMoveDB, tbl: SyncTable, remote: Syncable): Promise<boolean> {
+  const table = d.table(tbl);
+  const key = UNIQUE_KEYS[tbl];
+  return d.transaction("rw", table, async () => {
+    const local = (await table.get(remote.id)) as Syncable | undefined;
+    if (!remoteWins(local, remote)) return false;
+    const value = key ? (remote as unknown as Record<string, unknown>)[key] : undefined;
+    if (key && value !== undefined && value !== null) {
+      const others = (await table.where(key).equals(value as IndexableType).toArray()) as Syncable[];
+      const conflicting = others.find((o) => o.id !== remote.id);
+      const action = uniqueConflict(conflicting, remote);
+      if (action === "skip") return false;
+      if (action === "replace" && conflicting) await table.delete(conflicting.id);
+    }
+    await table.put(remote);
+    return true;
+  });
 }
 
 /** Mounted once: syncs on start, when the app returns to the foreground, and every 5 minutes. */

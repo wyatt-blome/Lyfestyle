@@ -2,7 +2,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/db/db";
 import { create, softDelete, update } from "@/db/records";
-import { canStart, endStatus, validateTimes } from "@/lib/fasting";
+import { canStart, endStatus, overlapError, validateTimes } from "@/lib/fasting";
 import type { Fast, ProtocolId } from "@/lib/types";
 
 export function useActiveFast(): Fast | null | undefined {
@@ -36,6 +36,8 @@ export async function startFast(input: {
   if (err) throw new Error(err);
   const existing = await activeFast();
   if (existing) throw new Error("A fast is already running.");
+  const overlap = overlapError(input.startAt, undefined, await db().fasts.toArray());
+  if (overlap) throw new Error(overlap);
   return create(db().fasts, {
     protocol: input.protocol,
     targetHours: input.targetHours,
@@ -69,6 +71,10 @@ export async function editFast(
   if (err) throw new Error(err);
   const gate = canStart(next.targetHours, !!next.doctorAck);
   if (!gate.ok) throw new Error(gate.reason);
+  if (changes.startAt !== undefined || changes.endAt !== undefined) {
+    const overlap = overlapError(next.startAt, next.endAt, await db().fasts.toArray(), id);
+    if (overlap) throw new Error(overlap);
+  }
   const status = next.endAt ? endStatus(next, next.endAt) : "active";
   await update(db().fasts, id, { ...changes, status });
 }

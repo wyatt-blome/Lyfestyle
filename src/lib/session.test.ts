@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sessions } from "@/seed/sessions";
-import { applySwaps, defaultEasy, deloadReasons, describeItem, fastTimingNote, hrMax, sessionBlocks, zones } from "./session";
+import { withoutHeavyCarries, applySwaps, defaultEasy, deloadReasons, describeItem, fastTimingNote, hrMax, sessionBlocks, zones } from "./session";
 import type { Fast } from "./types";
 
 const T = (id: string) => sessions.find((s) => s.id === id)!;
@@ -64,5 +64,18 @@ describe("deload triggers and easy days", () => {
   it("notes OMAD timing for hard sessions", () => {
     expect(fastTimingNote({ ...fast(5), protocol: "OMAD", targetHours: 23 }, true)).toMatch(/before the meal/);
     expect(fastTimingNote({ ...fast(5), protocol: "OMAD", targetHours: 23 }, false)).toBeNull();
+  });
+});
+
+describe("long-fast and quick-20 shaping", () => {
+  it("drops 40 lb carries during a long fast", () => {
+    const z = withoutHeavyCarries(sessionBlocks(T("Z"), "full", false));
+    expect(z.flatMap((b) => b.items).some((i) => i.exerciseId === "kb-suitcase-carry")).toBe(false);
+    const m = withoutHeavyCarries(sessionBlocks(T("M"), "full", false));
+    expect(m.flatMap((b) => b.items).some((i) => i.exerciseId === "kb-suitcase-march")).toBe(false);
+    expect(m.flatMap((b) => b.items).some((i) => i.exerciseId === "cat-camel")).toBe(true);
+  });
+  it("does not shrink a Quick 20 on a deload", () => {
+    expect(sessionBlocks(T("Q2"), "full", true)).toEqual(T("Q2").blocks);
   });
 });

@@ -13,7 +13,9 @@ create table if not exists public.records (
   primary key (user_id, tbl, id)
 );
 
-create index if not exists records_user_synced on public.records (user_id, synced_at);
+-- The pull pages in (synced_at, tbl, id) order, so ties on synced_at can't repeat a page.
+drop index if exists public.records_user_synced;
+create index if not exists records_user_synced_tbl_id on public.records (user_id, synced_at, tbl, id);
 
 alter table public.records enable row level security;
 

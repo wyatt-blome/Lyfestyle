@@ -14,12 +14,24 @@ function scale(n: number | undefined): number | undefined {
 /** The blocks to do today: full or short, with ~60% of the sets on a deload. */
 export function sessionBlocks(t: SessionTemplate, variant: Variant, deload: boolean): SessionBlock[] {
   const blocks = variant === "short" ? t.shortDay.blocks : t.blocks;
-  if (!deload || t.type === "mobility" || t.type === "zone2") return blocks;
+  // Quick 20s are timed formats: a deload day runs Q6 (the deload Q) instead of shrinking one.
+  if (!deload || t.type === "mobility" || t.type === "zone2" || t.type === "quick20") return blocks;
   return blocks.map((b) => ({
     ...b,
     rounds: scale(b.rounds),
     items: b.items.map((i) => ({ ...i, sets: scale(i.sets) })),
   }));
+}
+
+const CARRIES = ["kb-suitcase-carry", "kb-suitcase-march", "farmer-carry", "kb-rack-carry", "kb-bottoms-up-carry"];
+
+/** Heavy carries (40 lb) are off during a fast past 24 h (spec: hide heavy carries). */
+export function isHeavyCarry(i: SessionItem): boolean {
+  return CARRIES.includes(i.exerciseId) && (i.loadLb ?? 0) >= 40;
+}
+
+export function withoutHeavyCarries(blocks: SessionBlock[]): SessionBlock[] {
+  return blocks.map((b) => ({ ...b, items: b.items.filter((i) => !isHeavyCarry(i)) })).filter((b) => b.items.length > 0);
 }
 
 /** Apply this session's swaps (exerciseId → chosen replacement). */

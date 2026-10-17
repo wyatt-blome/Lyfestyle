@@ -86,7 +86,16 @@ export function toLocalInput(at: string | number): string {
 
 /** Parse a datetime-local value (device zone) back to UTC ISO. */
 export function fromLocalInput(value: string): string {
-  return new Date(value).toISOString();
+  const iso = parseLocalInput(value);
+  if (!iso) throw new Error("Enter a valid date and time.");
+  return iso;
+}
+
+/** Like fromLocalInput, but null for an empty or invalid value. */
+export function parseLocalInput(value: string): string | null {
+  if (!value.trim()) return null;
+  const t = new Date(value).getTime();
+  return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
 
 /** "Chapter time" like "1:30:59" or "43:47" → seconds. */

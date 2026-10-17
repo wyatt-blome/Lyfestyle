@@ -1,5 +1,5 @@
 import { createDecipheriv, createECDH, createHmac, createPublicKey, randomBytes, verify } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   b64u,
   bearerOk,
@@ -9,7 +9,10 @@ import {
   parseJobs,
   parseSubscription,
   pushEnv,
+  pushSetupProblem,
   sendPush,
+  validP256Point,
+  validVapidSubject,
   vapidHeaders,
 } from "./webpush";
 
@@ -153,6 +156,20 @@ describe("sendPush", () => {
       expect(await sendPush(sub, { title: "a", body: "b" }, vapid, 60, fake)).toEqual({ status, gone });
     }
   });
+
+  it("gives up on an endpoint that never answers (per-request timeout and caller's signal)", async () => {
+    const b = browserKeys();
+    const sub = { endpoint: "https://fcm.googleapis.com/fcm/send/x", keys: { p256dh: b.p256dh, auth: b64u(b.auth) } };
+    const blackHole = ((_: string, init: RequestInit) =>
+      new Promise((_resolve, reject) => init.signal!.addEventListener("abort", () => reject(init.signal!.reason)))) as unknown as typeof fetch;
+    const t0 = Date.now();
+    await expect(sendPush(sub, { title: "a", body: "b" }, vapid, 60, blackHole, { timeoutMs: 50 })).rejects.toThrow();
+    expect(Date.now() - t0).toBeLessThan(2000);
+    const ac = new AbortController();
+    const p = sendPush(sub, { title: "a", body: "b" }, vapid, 60, blackHole, { signal: ac.signal });
+    ac.abort();
+    await expect(p).rejects.toThrow();
+  });
 });
 
 describe("validation", () => {
@@ -168,6 +185,38 @@ describe("validation", () => {
     expect(parseSubscription({ endpoint: "https://fcm.googleapis.com.evil.example/x", keys })).toBeNull();
     expect(parseSubscription({ endpoint: "https://fcm.googleapis.com/x", keys: { ...keys, auth: "not base64!" } })).toBeNull();
     expect(parseSubscription({ endpoint: "https://fcm.googleapis.com/x", keys: { ...keys, auth: "AAAA" } })).toBeNull();
+  });
+
+  it("rejects non-default ports and userinfo in the endpoint", () => {
+    expect(parseSubscription({ endpoint: "https://fcm.googleapis.com:443/fcm/send/abc", keys })).not.toBeNull(); // = default
+    expect(parseSubscription({ endpoint: "https://fcm.googleapis.com:81/fcm/send/abc", keys })).toBeNull();
+    expect(parseSubscription({ endpoint: "https://fcm.googleapis.com:8443/fcm/send/abc", keys })).toBeNull();
+    expect(parseSubscription({ endpoint: "https://a:b@fcm.googleapis.com/fcm/send/abc", keys })).toBeNull();
+    expect(parseSubscription({ endpoint: "https://a@fcm.googleapis.com/fcm/send/abc", keys })).toBeNull();
+    expect(parseSubscription({ endpoint: "https://:b@web.push.apple.com/abc", keys })).toBeNull();
+  });
+
+  it("rejects p256dh values that aren't points on P-256", () => {
+    const zero = b64u(Buffer.concat([Buffer.from([4]), Buffer.alloc(64)]));
+    const offCurve = Buffer.from(fromB64u(b.p256dh));
+    offCurve[64] ^= 1;
+    const compressed = createECDH("prime256v1");
+    compressed.generateKeys();
+    const ep = "https://fcm.googleapis.com/fcm/send/abc";
+    for (const p256dh of [zero, b64u(offCurve), compressed.getPublicKey("base64url", "compressed"), b64u(fromB64u(b.p256dh).subarray(0, 64)), b64u(Buffer.concat([fromB64u(b.p256dh), Buffer.from([0])]))]) {
+      expect(parseSubscription({ endpoint: ep, keys: { ...keys, p256dh } })).toBeNull();
+    }
+    // The zero point is exactly what used to get through and make encrypt() throw later.
+    expect(() => encrypt(Buffer.from("x"), zero, keys.auth)).toThrow();
+    expect(validP256Point(fromB64u(b.p256dh))).toBe(true);
+    expect(validP256Point(fromB64u(zero))).toBe(false);
+  });
+
+  it("requires a 16-byte auth secret", () => {
+    const ep = "https://fcm.googleapis.com/fcm/send/abc";
+    expect(parseSubscription({ endpoint: ep, keys: { ...keys, auth: b64u(randomBytes(15)) } })).toBeNull();
+    expect(parseSubscription({ endpoint: ep, keys: { ...keys, auth: b64u(randomBytes(17)) } })).toBeNull();
+    expect(parseSubscription({ endpoint: ep, keys: { ...keys, auth: b64u(randomBytes(16)) } })).not.toBeNull();
   });
 
   it("checks jobs", () => {
@@ -193,10 +242,188 @@ describe("validation", () => {
       SUPABASE_SERVICE_ROLE_KEY: "svc",
     };
     expect(pushEnv(env)?.supabaseUrl).toBe("https://x.supabase.co");
+    expect(pushSetupProblem(env)).toBeNull();
+    expect(pushSetupProblem({ ...env, VAPID_PRIVATE_KEY: " " })).toBe("Push isn't set up: missing VAPID_PRIVATE_KEY.");
     expect(bearerOk("Bearer s3cret", "s3cret")).toBe(true);
     expect(bearerOk("Bearer s3cre", "s3cret")).toBe(false);
     expect(bearerOk("Bearer ", "")).toBe(false);
     expect(bearerOk(null, "s3cret")).toBe(false);
+  });
+});
+
+describe("VAPID subject", () => {
+  const env = {
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY: "pub",
+    VAPID_PRIVATE_KEY: "priv",
+    NEXT_PUBLIC_SUPABASE_URL: "https://x.supabase.co",
+    SUPABASE_SERVICE_ROLE_KEY: "svc",
+  };
+
+  it("accepts mailto: and https: only", () => {
+    expect(validVapidSubject("mailto:you@example.com")).toBe(true);
+    expect(validVapidSubject("https://example.com/contact")).toBe(true);
+    for (const bad of ["you@example.com", "http://example.com", "example.com", "mailto:", "https://", "tel:+123"]) {
+      expect(validVapidSubject(bad)).toBe(false);
+    }
+  });
+
+  it("treats a bad subject as not set up, with a clear message", () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(pushEnv({ ...env, VAPID_SUBJECT: "mailto:me@example.com" })).not.toBeNull();
+    expect(pushEnv({ ...env, VAPID_SUBJECT: "https://example.com" })).not.toBeNull();
+    expect(pushEnv({ ...env, VAPID_SUBJECT: "me@example.com" })).toBeNull();
+    expect(pushSetupProblem({ ...env, VAPID_SUBJECT: "me@example.com" })).toMatch(/^Push isn't set up: VAPID_SUBJECT must start with "mailto:"/);
+    err.mockRestore();
+  });
+});
+
+describe("dispatch route", () => {
+  const vapid = generateVapidKeys();
+  const SUPA = "https://x.supabase.co";
+
+  interface Row {
+    id: number;
+    endpoint: string;
+    kind: string;
+    send_at: string;
+    title: string;
+    body: string;
+    tag: string;
+    url: string;
+    attempts: number;
+    push_subscriptions: { p256dh: string; auth: string };
+  }
+
+  function setup(rows: Row[], push: (endpoint: string, init: RequestInit) => Promise<Response>) {
+    vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", vapid.publicKey);
+    vi.stubEnv("VAPID_PRIVATE_KEY", vapid.privateKey);
+    vi.stubEnv("VAPID_SUBJECT", "mailto:me@example.com");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", SUPA);
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "svc");
+    vi.stubEnv("PUSH_CRON_SECRET", "s3cret");
+    const db: { method: string; url: string; body: unknown }[] = [];
+    let claimed = false;
+    vi.stubGlobal("fetch", (async (input: string, init: RequestInit = {}) => {
+      const url = String(input);
+      const method = init.method ?? "GET";
+      if (!url.startsWith(SUPA)) return push(url, init);
+      db.push({ method, url: decodeURIComponent(url), body: init.body ? JSON.parse(String(init.body)) : undefined });
+      if (method === "GET") return Response.json(rows.map((r) => ({ id: r.id })));
+      if (method === "PATCH" && url.includes("select=")) {
+        // A second, overlapping run finds nothing left to claim.
+        const out = claimed ? [] : rows;
+        claimed = true;
+        return Response.json(out);
+      }
+      return new Response(null, { status: 204 });
+    }) as unknown as typeof fetch);
+    return db;
+  }
+
+  function job(id: number, endpoint: string, attempts = 0, sendAt = new Date(Date.now() - 30_000).toISOString()): Row {
+    const b = browserKeys();
+    return {
+      id,
+      endpoint,
+      kind: "target",
+      send_at: sendAt,
+      title: "Fast & Move",
+      body: "Target reached.",
+      tag: `fast-f${id}-target`,
+      url: "/fast",
+      attempts,
+      push_subscriptions: { p256dh: b.p256dh, auth: b64u(b.auth) },
+    };
+  }
+
+  async function run() {
+    const { POST } = await import("@/app/api/push/dispatch/route");
+    const req = { headers: new Headers({ authorization: "Bearer s3cret" }) } as unknown as Parameters<typeof POST>[0];
+    return POST(req);
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("claims jobs atomically and sends only what the claim returned", async () => {
+    const rows = [job(1, "https://fcm.googleapis.com/fcm/send/a")];
+    const sent: string[] = [];
+    const db = setup(rows, async (url) => {
+      sent.push(url);
+      return new Response(null, { status: 201 });
+    });
+    const first = await (await run()).json();
+    const second = await (await run()).json();
+    expect(first).toMatchObject({ due: 1, sent: 1 });
+    expect(second).toMatchObject({ due: 0, sent: 0 });
+    expect(sent).toHaveLength(1);
+    const claim = db.find((d) => d.method === "PATCH" && d.url.includes("select="))!;
+    expect(claim.url).toContain("id=in.(1)");
+    expect(claim.url).toContain("sent_at=is.null");
+    expect(claim.url).toMatch(/or=\(claimed_at\.is\.null,claimed_at\.lt\.[^)]+\)/);
+    expect(claim.body).toEqual({ claimed_at: expect.any(String) });
+    const mark = db.find((d) => d.method === "PATCH" && d.url.includes("id=in.(1)") && !d.url.includes("select="))!;
+    expect(mark.body).toEqual({ sent_at: expect.any(String) });
+  });
+
+  it("sends in parallel and records every outcome before the deadline, even with black-holed endpoints", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const rows = [
+      job(1, "https://fcm.googleapis.com/fcm/send/hole1"),
+      job(2, "https://fcm.googleapis.com/fcm/send/hole2", 2), // third attempt: give up
+      job(3, "https://fcm.googleapis.com/fcm/send/hole3"),
+      job(4, "https://fcm.googleapis.com/fcm/send/ok"),
+      job(5, "https://fcm.googleapis.com/fcm/send/busy"),
+      job(6, "https://fcm.googleapis.com/fcm/send/gone"),
+    ];
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const db = setup(rows, (url, init) => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      const settle = <T,>(v: T) => {
+        inFlight--;
+        return v;
+      };
+      if (url.endsWith("/ok")) return Promise.resolve(settle(new Response(null, { status: 201 })));
+      if (url.endsWith("/busy")) return Promise.resolve(settle(new Response(null, { status: 503 })));
+      if (url.endsWith("/gone")) return Promise.resolve(settle(new Response(null, { status: 410 })));
+      // Never answers; only an abort ends it.
+      return new Promise((_, reject) => init.signal!.addEventListener("abort", () => reject(settle(init.signal!.reason))));
+    });
+    const res = run();
+    await vi.advanceTimersByTimeAsync(31_000); // the overall send deadline (30 s) aborts the holes
+    const out = await (await res).json();
+    expect(maxInFlight).toBeGreaterThanOrEqual(3); // all three black holes at once: nothing waits for another
+    expect(out).toEqual({ due: 6, sent: 1, skipped: 0, failed: 1, retry: 3, gone: 1 });
+    const patches = db.filter((d) => d.method === "PATCH" && !d.url.includes("select="));
+    expect(patches).toContainEqual({ method: "PATCH", url: expect.stringContaining("id=in.(2,4)"), body: { sent_at: expect.any(String) } });
+    expect(patches).toContainEqual({ method: "PATCH", url: expect.stringContaining("id=in.(1,3,5)"), body: { attempts: 1, claimed_at: null } });
+    expect(db).toContainEqual({ method: "DELETE", url: expect.stringContaining("push_subscriptions?endpoint=eq.https://fcm.googleapis.com/fcm/send/gone"), body: undefined });
+  });
+
+  it("drops stale jobs, and deletes subscriptions whose stored keys are invalid", async () => {
+    const stale = job(1, "https://fcm.googleapis.com/fcm/send/old", 0, new Date(Date.now() - 2 * 3600_000).toISOString());
+    const bad = job(2, "https://fcm.googleapis.com/fcm/send/bad");
+    bad.push_subscriptions.p256dh = b64u(Buffer.concat([Buffer.from([4]), Buffer.alloc(64)]));
+    const push = vi.fn(async () => new Response(null, { status: 201 }));
+    const db = setup([stale, bad], push);
+    expect(await (await run()).json()).toEqual({ due: 2, sent: 0, skipped: 1, failed: 0, retry: 0, gone: 1 });
+    expect(push).not.toHaveBeenCalled();
+    expect(db).toContainEqual({ method: "DELETE", url: expect.stringContaining("endpoint=eq.https://fcm.googleapis.com/fcm/send/bad"), body: undefined });
+  });
+
+  it("explains a bad VAPID_SUBJECT to the (authenticated) cron caller", async () => {
+    setup([], async () => new Response(null, { status: 201 }));
+    vi.stubEnv("VAPID_SUBJECT", "me@example.com");
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await run();
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toMatch(/VAPID_SUBJECT must start with "mailto:"/);
+    err.mockRestore();
   });
 });
 
@@ -229,6 +456,17 @@ describe("reminder schedule (client)", async () => {
     ]);
     expect(reminderJobs([{ ...ended, protocol: "36h", targetHours: 36 }], settings, end)).toEqual([]);
     expect(reminderJobs([ended], { notifications: { ...notifications, windowClosing: false } } as typeof settings, end)).toEqual([]);
+  });
+
+  it("drops the window reminder once the next fast has started", () => {
+    const end = start + 16 * 3600_000;
+    const ended = { ...active, id: "f0", status: "completed" as const, endAt: new Date(end).toISOString() };
+    const next = { ...active, id: "f2", startAt: new Date(end + 2 * 3600_000).toISOString() };
+    const jobs = reminderJobs([next, ended], settings, end + 2 * 3600_000 + 60_000);
+    expect(jobs.map((j) => [j.fastId, j.kind])).toEqual([
+      ["f2", "halfway"],
+      ["f2", "target"],
+    ]);
   });
 
   it("skips anything more than 7 days out", () => {

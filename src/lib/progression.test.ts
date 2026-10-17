@@ -77,3 +77,15 @@ describe("Quick 20 hint", () => {
     expect(quickHint([6, 7])).toBeNull();
   });
 });
+
+describe("stages set the dose, not just the label", () => {
+  const at = (key: string, stage: number) => ({ ...initialState(key), stage, id: "x", createdAt: "", updatedAt: "" });
+  it("goblet squat, carry and press follow their stage", () => {
+    expect(prescribe({ exerciseId: "kb-goblet-squat", reps: "5-8", loadLb: 40 }, at("kb-goblet-squat", 3)).reps).toBe(10);
+    expect(prescribe({ exerciseId: "kb-suitcase-carry", meters: 30, perSide: true, loadLb: 40 }, at("kb-suitcase-carry", 3)).meters).toBe(60);
+    expect(prescribe({ exerciseId: "kb-suitcase-carry", meters: 30, perSide: true, loadLb: 40 }, at("kb-suitcase-carry", 1)).meters).toBe(20);
+    expect(prescribe({ exerciseId: "kb-press", reps: 5, perSide: true, loadLb: 15 }, at("kb-press", 2)).reps).toBe("1-5 ×3");
+    // Timed carries (a held minute) keep their time.
+    expect(prescribe({ exerciseId: "kb-suitcase-carry", seconds: 60, loadLb: 40 }, at("kb-suitcase-carry", 3)).meters).toBeUndefined();
+  });
+});

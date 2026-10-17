@@ -2,6 +2,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/db/db";
 import { create, softDelete, update } from "@/db/records";
+import { entryInFast } from "@/lib/fasting";
 import { activeFast } from "./fasts";
 import type { Fast, IntakeEntry, IntakeTemplate } from "@/lib/types";
 
@@ -35,12 +36,14 @@ export async function logIntake(
   at: string,
 ): Promise<{ entry: IntakeEntry; breaks: Fast | null }> {
   const fast = await activeFast();
-  const breaks = fast && wouldBreakFast(template) && Date.parse(at) >= Date.parse(fast.startAt) ? fast : null;
+  // A future-dated entry isn't linked to the running fast and doesn't offer to end it.
+  const inFast = !!fast && entryInFast(fast.startAt, at, Date.now());
+  const breaks = fast && inFast && wouldBreakFast(template) ? fast : null;
   const entry = await create(db().intake, {
     ...template,
     breaksFast: wouldBreakFast(template),
     at,
-    fastId: fast && Date.parse(at) >= Date.parse(fast.startAt) ? fast.id : undefined,
+    fastId: fast && inFast ? fast.id : undefined,
     source: template.source ?? "manual",
   });
   return { entry, breaks };

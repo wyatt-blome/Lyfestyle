@@ -17,3 +17,5 @@ npm-debug.log*
 fast-and-move-backup-*.json
 /test-results/
 /public/media/
+/.e2e-tools/
+/playwright-report/

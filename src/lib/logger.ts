@@ -56,12 +56,14 @@ export function prefill(rows: Row[], last: WorkoutLog | null | undefined): Worko
   const prev = new Map((last?.sets ?? []).map((s) => [`${s.exerciseId}#${s.setIndex}`, s]));
   return rows.map((r) => {
     const p = prev.get(`${r.item.exerciseId}#${r.setIndex}`);
+    // After a load increase, start again at the bottom of the range rather than last time's reps.
+    const heavier = (r.item.loadLb ?? 0) > (p?.loadLb ?? 0) && p?.loadLb !== undefined;
     return {
       exerciseId: r.item.exerciseId,
       setIndex: r.setIndex,
-      reps: p?.reps ?? defaultReps(r.item),
+      reps: heavier ? defaultReps(r.item) : (p?.reps ?? defaultReps(r.item)),
       seconds: p?.seconds ?? r.item.seconds,
-      meters: p?.meters ?? r.item.meters,
+      meters: Math.max(p?.meters ?? 0, r.item.meters ?? 0) || undefined,
       // The plan's load wins when it went up (progression); otherwise last time's.
       loadLb: Math.max(p?.loadLb ?? 0, r.item.loadLb ?? 0) || undefined,
       done: false,

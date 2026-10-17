@@ -31,12 +31,21 @@ export function SessionScreen() {
   const plan = useSessionPlan(id, variant, deload, reasons);
   const last = useLastLog(id);
   const [easyOpen, setEasyOpen] = useState(false);
+  // The same page serves every session, so follow the URL when it changes (Easy Day → M).
+  const [lastQuery, setLastQuery] = useState(`${id}|${qVariant}`);
+  if (lastQuery !== `${id}|${qVariant}`) {
+    setLastQuery(`${id}|${qVariant}`);
+    setVariant(qVariant);
+    setEasyOpen(false);
+  }
 
+  // Cache this session's demos once per session/variant (not on every re-render).
+  const mediaKey = plan ? `${plan.template.id}|${plan.variant}|${plan.blocks.map((b) => b.items.map((i) => i.exerciseId).join()).join()}` : "";
   useEffect(() => {
-    if (!plan) return;
-    const ids = new Set(plan.blocks.flatMap((b) => b.items.map((i) => i.exerciseId)));
+    if (!mediaKey) return;
+    const ids = new Set(mediaKey.split("|")[2].split(","));
     warmMedia([...ids].flatMap((x) => (exerciseById.get(x) ? mediaUrls(exerciseById.get(x)!) : [])));
-  }, [plan]);
+  }, [mediaKey]);
 
   if (!id) return <Page title="Session" back="/train"><p className="text-muted">Pick a session from Train.</p></Page>;
   if (!plan) return <Page title="Session" back="/train">{null}</Page>;
@@ -59,6 +68,7 @@ export function SessionScreen() {
         <Notice tone="bad">You&apos;re in a long fast. Hard sessions are off: do M, Z or the Daily 10 instead.</Notice>
       )}
       {timing && <Notice tone="info">{timing}</Notice>}
+      {plan.carriesHidden && <Notice>Past 24 h fasted: the 40 lb carries are left out today.</Notice>}
       {deload && plan.deloadReasons.length > 0 && (
         <Notice tone="info">
           Deload: {plan.deloadReasons.join(" · ")}. Nothing to failure.
@@ -109,6 +119,7 @@ export function SessionScreen() {
                 original={plan.meta[bi][ii].original}
                 sessionSwap={t.swaps[plan.meta[bi][ii].original]}
                 stageLabel={plan.meta[bi][ii].stageLabel}
+                swapped={plan.meta[bi][ii].swapped}
               />
             ))}
           </ul>
@@ -124,7 +135,15 @@ export function SessionScreen() {
           {[defaultEasy(t.id), ...EASY_OPTIONS.filter((e) => e !== defaultEasy(t.id))].map((e, i) => {
             const s = sessionById.get(e)!;
             return (
-              <Button key={e} big variant={i === 0 ? "primary" : "secondary"} onClick={() => router.push(`/train/session?id=${e}&v=easy`)}>
+              <Button
+                key={e}
+                big
+                variant={i === 0 ? "primary" : "secondary"}
+                onClick={() => {
+                  setEasyOpen(false);
+                  router.push(`/train/session?id=${e}&v=easy`);
+                }}
+              >
                 {sessionLabel(s)} · {s.fullMin} min
               </Button>
             );

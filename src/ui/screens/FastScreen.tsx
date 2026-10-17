@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { editFast, startFast, useActiveFast, useFasts } from "@/client/fasts";
+import { deleteFast, editFast, startFast, useActiveFast, useFasts } from "@/client/fasts";
 import { totals, useIntakeBetween } from "@/client/intake";
 import { saveSettings, useSettings } from "@/client/settings";
 import { useNow } from "@/client/useNow";
@@ -9,6 +9,7 @@ import {
   DISCLAIMER,
   EXTENDED_WARNING,
   isExtended,
+  parseHours,
   progress,
   protocolSuggestion,
   PROTOCOLS,
@@ -50,8 +51,10 @@ function StartFast() {
   if (!settings) return null;
 
   const protocol = picked ?? settings.defaultProtocol;
-  const customHours = custom ? Number(custom) : settings.customHours;
-  const target = targetHoursFor(protocol, customHours);
+  // Lenient: "16,5" and "36 h" both parse. Anything else disables Start with a hint.
+  const parsedCustom = custom.trim() ? parseHours(custom) : settings.customHours;
+  const customInvalid = protocol === "custom" && parsedCustom === null;
+  const target = targetHoursFor(protocol, parsedCustom ?? undefined);
   const needsAck = requiresDoctorAck(target);
   const suggestion = fasts ? protocolSuggestion(fasts, now, settings.tz) : null;
 
@@ -80,8 +83,14 @@ function StartFast() {
           {target} h fast · {PROTOCOLS.find((p) => p.id === protocol)?.note}
         </p>
         {protocol === "custom" && (
-          <Field label="Custom hours">
-            <input inputMode="decimal" value={custom} placeholder={String(settings.customHours)} onChange={(e) => setCustom(e.target.value)} />
+          <Field label="Custom hours" hint={customInvalid ? "Enter hours as a number, like 16 or 16.5." : undefined}>
+            <input
+              inputMode="decimal"
+              value={custom}
+              placeholder={String(targetHoursFor("custom", settings.customHours))}
+              aria-invalid={customInvalid || undefined}
+              onChange={(e) => setCustom(e.target.value)}
+            />
           </Field>
         )}
         {suggestion && <p className="mt-2 text-base text-info">{suggestion}</p>}
@@ -109,19 +118,19 @@ function StartFast() {
           variant="primary"
           big
           className="mt-3 w-full"
-          disabled={needsAck && !ack}
+          disabled={customInvalid || (needsAck && !ack)}
           onClick={async () => {
             try {
               const startAt = earlier ? fromLocalInput(startLocal || toLocalInput(now - 2 * HOUR_MS)) : new Date().toISOString();
               await startFast({ protocol, targetHours: target, startAt, doctorAck: ack });
-              if (protocol === "custom") await saveSettings({ customHours: target });
+              if (protocol === "custom" && Number.isFinite(target)) await saveSettings({ customHours: target });
               toast(`${protocol} fast started`, "good");
             } catch (e) {
               toast((e as Error).message, "bad");
             }
           }}
         >
-          Start {protocol === "custom" ? `${target} h` : protocol} fast
+          {customInvalid ? "Enter custom hours" : `Start ${protocol === "custom" ? `${target} h` : protocol} fast`}
         </Button>
       </Card>
 
@@ -172,7 +181,7 @@ function Running({ fast }: { fast: Fast }) {
         {editing && <EditStart fast={fast} onDone={() => setEditing(false)} />}
       </Card>
 
-      {fast.targetHours > 24 && <Notice tone="bad">{EXTENDED_WARNING}</Notice>}
+      {(fast.targetHours > 24 || hours > 24) && <Notice tone="bad">{EXTENDED_WARNING}</Notice>}
       {hours > 24 && (
         <Notice>Past 24 h: Train shows only M, Z or the Daily 10. No 4×4, Q5 or heavy carries.</Notice>
       )}
@@ -249,6 +258,20 @@ function EditStart({ fast, onDone }: { fast: Fast; onDone: () => void }) {
         }}
       >
         Save start time
+      </Button>
+      <Button
+        variant="danger"
+        onClick={async () => {
+          if (!confirm("Discard this fast? It won't be kept in your history.")) return;
+          try {
+            await deleteFast(fast.id);
+            toast("Fast discarded", "info");
+          } catch (e) {
+            toast((e as Error).message, "bad");
+          }
+        }}
+      >
+        Discard this fast
       </Button>
     </div>
   );

@@ -191,8 +191,10 @@ const C: SessionTemplate = {
   id: "C",
   name: "Norwegian 4×4",
   type: "interval",
-  fullMin: 38,
-  shortMin: 24,
+  // What the timer actually runs (10 + 4 × 4 + 3 × 3 recoveries + 5; short 6 + 2 × 4 + 3 + 4).
+  // The spec table says 38 / 24; see DECISIONS D27.
+  fullMin: 40,
+  shortMin: 21,
   summary: "Four 4-minute hard efforts with 3-minute easy recoveries.",
   timer: C_TIMER,
   blocks: [

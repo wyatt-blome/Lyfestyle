@@ -2,8 +2,9 @@ import { createSerwistRoute } from "@serwist/turbopack";
 import { exercises } from "@/seed";
 import { APP_ROUTES } from "@/ui/routes";
 
-// One revision per build, so every screen's cached HTML refreshes together.
-const revision = process.env.VERCEL_GIT_COMMIT_SHA ?? `${Date.now()}`;
+// One revision per deployment, so every screen's cached HTML refreshes together. Not the commit
+// SHA: a redeploy after changing environment variables reuses it while the chunks change.
+const revision = process.env.VERCEL_DEPLOYMENT_ID ?? `${Date.now()}`;
 
 export const { dynamic, dynamicParams, revalidate, generateStaticParams, GET } = createSerwistRoute({
   swSrc: "src/app/sw.ts",

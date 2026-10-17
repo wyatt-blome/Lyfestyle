@@ -50,7 +50,8 @@ export function ProgramScreen() {
         <ul className="flex flex-col divide-y divide-line">
           {DAYS.map((label, i) => {
             const d = addDays(monday, i);
-            const p = planForDay(rotation, d, (date, id) => done.has(`${date}|${id}`));
+            // A Wednesday still to come counts as done, so a future Saturday shows Z, not a moved 4×4.
+            const p = planForDay(rotation, d, (date, id) => date >= today || done.has(`${date}|${id}`));
             const s = p.sessionId === "REST" ? null : sessionById.get(p.sessionId);
             const did = doneOn(d);
             return (
@@ -58,7 +59,7 @@ export function ProgramScreen() {
                 <span>
                   <span className="mr-2 inline-block w-10 font-semibold">{label}</span>
                   {s ? (
-                    <Link href={`/train/session?id=${s.id}`} className="underline-offset-4 hover:underline">
+                    <Link href={`/train/session?id=${s.id}`} className="btn inline-flex min-h-12 items-center underline-offset-4 hover:underline">
                       {s.id.startsWith("Q") ? s.name : `${s.id} · ${s.name}`}
                     </Link>
                   ) : (

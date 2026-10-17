@@ -155,12 +155,15 @@ export function hrSeries(logs: WorkoutLog[]): { date: string; peak: number; avg:
 
 export type MetricField = "weightLb" | "waistIn" | "restingHr";
 
-/** One body metric over time (oldest first), one point per reading. */
+/** One body metric over time (oldest first), one point per day: the day's last reading. */
 export function metricSeries(metrics: BodyMetric[], field: MetricField, tz: string): DayPoint[] {
-  return alive(metrics)
+  const byDay = new Map<string, number>();
+  for (const m of alive(metrics)
     .filter((m) => typeof m[field] === "number")
-    .sort((a, b) => a.at.localeCompare(b.at))
-    .map((m) => ({ date: dateKey(m.at, tz), value: m[field]! }));
+    .sort((a, b) => a.at.localeCompare(b.at))) {
+    byDay.set(dateKey(m.at, tz), m[field]!);
+  }
+  return [...byDay.entries()].map(([date, value]) => ({ date, value })).sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // ---------- Weekly summary ----------

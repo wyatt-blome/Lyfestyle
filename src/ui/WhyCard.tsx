@@ -29,6 +29,8 @@ export function WhyCardView({ card, collapsible = true, defaultOpen = false }: {
           <Badge tone="info">Experts disagree</Badge>
         </div>
       )}
+      {/* The ⚠ line shows even when the card is collapsed, so it is never missed. */}
+      {card.unverified && <p className="mt-2 text-base text-warn">⚠ {card.unverified}</p>}
       {open && (
         <div className="mt-3 flex flex-col gap-3">
           <p>
@@ -39,7 +41,7 @@ export function WhyCardView({ card, collapsible = true, defaultOpen = false }: {
             <ul className="flex flex-col gap-1 text-base">
               {card.evidence.map((e) => (
                 <li key={e.url}>
-                  <a href={e.url} target="_blank" rel="noreferrer" className="text-info underline">
+                  <a href={e.url} target="_blank" rel="noreferrer" className="btn inline-flex min-h-12 items-center text-info underline">
                     {e.label}
                   </a>
                 </li>
@@ -57,7 +59,7 @@ export function WhyCardView({ card, collapsible = true, defaultOpen = false }: {
                   {r.href ? (
                     <>
                       {" "}
-                      <a href={r.href} target="_blank" rel="noreferrer" className="whitespace-nowrap text-info underline">
+                      <a href={r.href} target="_blank" rel="noreferrer" className="btn inline-flex min-h-12 items-center whitespace-nowrap px-1 text-info underline">
                         {r.ref.t ? `Open at ${r.ref.t}` : "Open episode"}
                       </a>
                     </>
@@ -69,7 +71,6 @@ export function WhyCardView({ card, collapsible = true, defaultOpen = false }: {
             </ul>
             <p className="mt-2 text-sm text-muted">{SOURCE_LABEL}.</p>
           </div>
-          {card.unverified && <p className="text-base text-warn">⚠ {card.unverified}</p>}
         </div>
       )}
     </article>

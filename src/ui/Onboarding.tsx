@@ -2,7 +2,9 @@
 import { useEffect, useState } from "react";
 import { requestPersistence } from "@/client/backup";
 import { saveSettings, useSettings } from "@/client/settings";
+import { db } from "@/db/db";
 import { DISCLAIMER } from "@/lib/fasting";
+import { deviceTz } from "@/lib/time";
 import { Button, Check, Field, Sheet } from "./kit";
 
 /** First-run sheet: the disclaimer, age (for HR zones) and a storage-persistence request. */
@@ -14,6 +16,19 @@ export function Onboarding() {
   useEffect(() => {
     void requestPersistence();
   }, []);
+
+  // Mounted app-wide: keep settings.tz on this device's zone (travel, DST rules, a synced row
+  // from another device). Only touches a stored row, so untouched defaults stay untouched.
+  const tz = settings?.tz;
+  useEffect(() => {
+    if (!tz) return;
+    const here = deviceTz();
+    if (tz === here) return;
+    void db()
+      .settings.get("settings")
+      .then((s) => (s && s.tz !== here ? saveSettings({ tz: here }) : undefined))
+      .catch(() => undefined);
+  }, [tz]);
 
   if (!settings || settings.onboarded) return null;
   return (

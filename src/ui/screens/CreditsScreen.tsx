@@ -39,7 +39,7 @@ export function CreditsScreen() {
     <Page title="Credits" back="/settings">
       {SOURCES.map((s) => (
         <Card key={s.name}>
-          <a href={s.url} target="_blank" rel="noreferrer" className="text-lg font-semibold text-info underline">
+          <a href={s.url} target="_blank" rel="noreferrer" className="btn inline-flex min-h-12 items-center text-lg font-semibold text-info underline">
             {s.name}
           </a>
           <p className="text-base text-muted">{s.note}</p>
@@ -52,7 +52,7 @@ export function CreditsScreen() {
             .map((e) => (
               <li key={e.id}>
                 {e.url ? (
-                  <a href={e.url} target="_blank" rel="noreferrer" className="text-info underline">
+                  <a href={e.url} target="_blank" rel="noreferrer" className="btn inline-flex min-h-12 items-center text-info underline">
                     {e.guest} ({e.date})
                   </a>
                 ) : (

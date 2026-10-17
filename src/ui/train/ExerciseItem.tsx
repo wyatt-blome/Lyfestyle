@@ -7,6 +7,7 @@ import type { SessionId, SessionItem } from "@/lib/types";
 import { exerciseById } from "@/seed";
 import { Badge, Button, Sheet } from "../kit";
 import { LoopedDemo } from "../LoopedDemo";
+import { WhyCards } from "../WhyCard";
 
 /** One move in a session list: name, dose, demo, cues, and the Swap sheet. */
 export function ExerciseItem({
@@ -17,6 +18,7 @@ export function ExerciseItem({
   original,
   sessionSwap,
   stageLabel,
+  swapped = false,
 }: {
   item: SessionItem;
   rounds?: number;
@@ -26,6 +28,7 @@ export function ExerciseItem({
   original: string;
   sessionSwap?: string;
   stageLabel?: string;
+  swapped?: boolean;
 }) {
   const ex = exerciseById.get(item.exerciseId);
   const [open, setOpen] = useState(false);
@@ -44,7 +47,7 @@ export function ExerciseItem({
           <span className="block text-base text-muted tabular">{describeItem(item, rounds, restSec)}</span>
           {item.note && <span className="block text-sm text-muted">{item.note}</span>}
           {stageLabel && <span className="mt-1 inline-block"><Badge tone="info">Stage: {stageLabel}</Badge></span>}
-          {original !== item.exerciseId && <span className="mt-1 ml-1 inline-block"><Badge>Swapped</Badge></span>}
+          {swapped && <span className="mt-1 ml-1 inline-block"><Badge>Swapped</Badge></span>}
         </span>
         <span className="text-2xl text-muted">{open ? "−" : "+"}</span>
       </button>
@@ -57,6 +60,7 @@ export function ExerciseItem({
             ))}
           </ul>
           <p className="text-sm text-muted">Avoid: {ex.faults.join(" · ")}</p>
+          <WhyCards keys={[`exercise:${ex.id}`]} />
           <div className="grid grid-cols-2 gap-2">
             {options.length > 1 && <Button onClick={() => setSwapOpen(true)}>Swap</Button>}
             <Link href={`/train/exercises/${ex.id}`} className="btn flex min-h-12 items-center justify-center rounded-2xl border border-line bg-surface-2 text-lg">

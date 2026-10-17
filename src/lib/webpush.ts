@@ -161,13 +161,25 @@ export interface SendResult {
   gone: boolean;
 }
 
+/** Default per-request timeout. Short enough that a black-holed endpoint can't eat a cron run. */
+export const PUSH_TIMEOUT_MS = 8000;
+
+export interface SendOptions {
+  /** Per-request timeout (default `PUSH_TIMEOUT_MS`). */
+  timeoutMs?: number;
+  /** Aborts the request early, e.g. at the dispatcher's overall deadline. */
+  signal?: AbortSignal;
+}
+
 export async function sendPush(
   sub: PushSubscriptionJSON,
   payload: PushPayload | Record<string, unknown>,
   vapid: VapidConfig,
   ttlSeconds = 3600,
   doFetch: typeof fetch = fetch,
+  opts: SendOptions = {},
 ): Promise<SendResult> {
+  const timeout = AbortSignal.timeout(opts.timeoutMs ?? PUSH_TIMEOUT_MS);
   const body = encrypt(Buffer.from(JSON.stringify(payload)), sub.keys.p256dh, sub.keys.auth);
   const res = await doFetch(sub.endpoint, {
     method: "POST",
@@ -180,7 +192,7 @@ export async function sendPush(
     },
     body: new Uint8Array(body),
     cache: "no-store",
-    signal: AbortSignal.timeout(10_000),
+    signal: opts.signal ? AbortSignal.any([timeout, opts.signal]) : timeout,
   });
   return { status: res.status, gone: res.status === 404 || res.status === 410 };
 }
@@ -189,13 +201,39 @@ export async function sendPush(
 
 export const PUSH_NOT_SET_UP = "Push isn't set up";
 
+/** Apple's push service rejects any other VAPID `sub` claim (RFC 8292 §2.1 allows only these). */
+export function validVapidSubject(subject: string): boolean {
+  return /^mailto:\S+@\S+$/i.test(subject) || /^https:\/\/\S+$/i.test(subject);
+}
+
+export const BAD_VAPID_SUBJECT = 'VAPID_SUBJECT must start with "mailto:" (e.g. mailto:you@example.com) or "https:".';
+
+/** Why `pushEnv` returned null, in words for the server log and a 503 body; null when it's fine. */
+export function pushSetupProblem(env: Record<string, string | undefined> = process.env): string | null {
+  const missing = [
+    "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
+    "VAPID_PRIVATE_KEY",
+    "VAPID_SUBJECT",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+  ].filter((k) => !env[k]?.trim());
+  if (missing.length) return `${PUSH_NOT_SET_UP}: missing ${missing.join(", ")}.`;
+  if (!validVapidSubject(env.VAPID_SUBJECT!.trim())) return `${PUSH_NOT_SET_UP}: ${BAD_VAPID_SUBJECT}`;
+  return null;
+}
+
+let warnedSubject = false;
+
 export interface PushEnv {
   vapid: VapidConfig;
   supabaseUrl: string;
   serviceKey: string;
 }
 
-/** Everything the push routes need, or null when any of it is missing. */
+/**
+ * Everything the push routes need, or null when any of it is missing or VAPID_SUBJECT isn't a
+ * mailto:/https: URI (logged once, since the routes only answer the generic 503).
+ */
 export function pushEnv(env: Record<string, string | undefined> = process.env): PushEnv | null {
   const publicKey = env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
   const privateKey = env.VAPID_PRIVATE_KEY?.trim();
@@ -203,6 +241,11 @@ export function pushEnv(env: Record<string, string | undefined> = process.env): 
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL?.trim().replace(/\/+$/, "");
   const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!publicKey || !privateKey || !subject || !supabaseUrl || !serviceKey) return null;
+  if (!validVapidSubject(subject)) {
+    if (!warnedSubject) console.error(`[push] ${PUSH_NOT_SET_UP}: ${BAD_VAPID_SUBJECT}`);
+    warnedSubject = true;
+    return null;
+  }
   return { vapid: { publicKey, privateKey, subject }, supabaseUrl, serviceKey };
 }
 
@@ -225,6 +268,22 @@ const PUSH_HOSTS = [
   /^(.+\.)?notify\.windows\.com$/,
 ];
 
+/**
+ * True for a 65-byte uncompressed point that is actually on P-256: ECDH with it succeeds, so
+ * `encrypt` won't throw later (e.g. 0x04 followed by 64 zero bytes is rejected here).
+ */
+export function validP256Point(pub: Uint8Array): boolean {
+  if (pub.length !== 65 || pub[0] !== 4) return false;
+  try {
+    const ecdh = createECDH("prime256v1");
+    ecdh.generateKeys();
+    ecdh.computeSecret(pub);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function parseSubscription(v: unknown): PushSubscriptionJSON | null {
   if (!v || typeof v !== "object") return null;
   const o = v as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } };
@@ -236,11 +295,13 @@ export function parseSubscription(v: unknown): PushSubscriptionJSON | null {
     return null;
   }
   if (url.protocol !== "https:" || !PUSH_HOSTS.some((re) => re.test(url.hostname))) return null;
+  // Default port (443) only, and no userinfo: nothing but the push service's own HTTPS front door.
+  if (url.port !== "" || url.username !== "" || url.password !== "") return null;
   const p256dh = o.keys?.p256dh;
   const auth = o.keys?.auth;
-  if (typeof p256dh !== "string" || typeof auth !== "string" || !B64U.test(p256dh) || !B64U.test(auth)) return null;
-  const pub = fromB64u(p256dh);
-  if (pub.length !== 65 || pub[0] !== 4 || fromB64u(auth).length !== 16) return null;
+  if (typeof p256dh !== "string" || typeof auth !== "string" || p256dh.length > 100 || auth.length > 30) return null;
+  if (!B64U.test(p256dh) || !B64U.test(auth)) return null;
+  if (!validP256Point(fromB64u(p256dh)) || fromB64u(auth).length !== 16) return null;
   return { endpoint: o.endpoint, keys: { p256dh, auth } };
 }
 

@@ -24,9 +24,15 @@ create table if not exists public.push_jobs (
   body       text not null check (char_length(body) <= 120),
   tag        text not null,
   url        text not null default '/fast',
-  sent_at    timestamptz,
+  sent_at    timestamptz,                 -- done: sent, given up or dropped as stale
+  claimed_at timestamptz,                 -- a dispatch run is sending it (lease, 2 min)
+  attempts   int not null default 0,      -- failed sends so far; given up after 3
   created_at timestamptz not null default now()
 );
+
+-- Added after the first version: lets an existing table pick up the new columns on re-run.
+alter table public.push_jobs add column if not exists claimed_at timestamptz;
+alter table public.push_jobs add column if not exists attempts int not null default 0;
 
 -- The dispatcher's query: unsent jobs that are due.
 create index if not exists push_jobs_due on public.push_jobs (send_at) where sent_at is null;
@@ -62,7 +68,11 @@ select cron.schedule(
     body := '{}'::jsonb,
     timeout_milliseconds := 20000
   )
-  where exists (select 1 from public.push_jobs where sent_at is null and send_at <= now());
+  where exists (
+    select 1 from public.push_jobs
+    where sent_at is null and send_at <= now()
+      and (claimed_at is null or claimed_at < now() - interval '2 minutes')
+  );
   $$
 );
 

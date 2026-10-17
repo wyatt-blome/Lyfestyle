@@ -25,8 +25,11 @@ npm run build && npm start   # http://localhost:3000
 ## Check changes
 
 ```bash
-npm run validate     # typecheck, lint, tests, build
+npm run validate     # typecheck, lint, unit tests, build
+npm run test:e2e     # browser tests of the acceptance criteria (after a build)
 ```
+
+The browser tests (`e2e/`) start a production server and check the acceptance criteria in `docs/SPEC.md` on a phone-sized screen. They cover the fast timer, the rotation, the Quick 20 timers, progression, safety rules, why cards, demos, backup and offline. Playwright is installed into `.e2e-tools` on first run instead of `package.json`. Set `PW_CHROMIUM=/path/to/chrome` to use a Chromium you already have. CI runs both suites on every pull request.
 
 ## Deploy to Vercel (Hobby, free)
 
@@ -51,10 +54,13 @@ The app works fully without this. To keep two devices in step:
 3. Under Authentication → URL Configuration, set **Site URL** to your Vercel URL and add `https://<your-app>.vercel.app/settings` to the redirect URLs.
 4. Under Project Settings → API, copy the **Project URL** and the **anon public** key into Vercel as `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`, then redeploy.
 5. In the app, open Settings → Sync, enter your email, and open the magic link on the same phone. Do the same on the other device.
+6. After both devices are signed in, turn off **Allow new users to sign up** under Authentication → Sign In / Providers (in older dashboards, Authentication → Settings), so nobody else can create an account on your project. Your existing account keeps working.
 
 How it behaves:
 - It syncs when the app opens, every 5 minutes, and whenever you come back to the app.
-- **Conflicts:** the newest edit wins, by each record's `updatedAt`.
+- **Conflicts:** the newest edit wins, by each record's `updatedAt`. If two devices made the same day's readiness (or an exercise's progression, or an episode note) separately, the newer one is kept.
+- **A new device** pulls before it pushes, so its untouched defaults never replace your settings. Importing a backup or erasing data makes the next sync send and re-read everything.
+- **Sign-in links** only work on the device that asked for them, within an hour.
 - **Deletes:** they are soft (`deletedAt`), so they sync like any other edit.
 - **What doesn't sync:** timers in progress and swaps stay on each device.
 - **Idle projects:** free projects pause after about a week without use. Sync then shows a "restore it" message until you resume the project in the Supabase dashboard.

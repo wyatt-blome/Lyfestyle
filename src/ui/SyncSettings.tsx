@@ -1,6 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
-import { fetchEmail, saveSession, sendMagicLink, signOut, SYNC_AVAILABLE, syncNow, useSyncStatus } from "@/client/sync";
+import {
+  fetchEmail,
+  saveSession,
+  sendMagicLink,
+  signOut,
+  SYNC_AVAILABLE,
+  syncNow,
+  takePendingSignIn,
+  useSyncStatus,
+} from "@/client/sync";
 import { authError, parseAuthHash } from "@/lib/sync";
 import { formatDayTime } from "@/lib/time";
 import { Button, Card, Field, Notice } from "./kit";
@@ -20,6 +29,12 @@ export function SyncSettings() {
     const session = parseAuthHash(hash, Date.now());
     if (session || err) history.replaceState(null, "", window.location.pathname);
     if (err) toast(`Sign-in failed: ${err}`, "bad");
+    // Only accept a link this device asked for in the last hour, so a link someone else sends
+    // can't sign this phone into their account.
+    if (session && !takePendingSignIn()) {
+      toast("Ignored a sign-in link this device didn't ask for. Send a new one from here.", "bad");
+      return;
+    }
     if (session) {
       saveSession(session);
       void fetchEmail().then(() => syncNow());

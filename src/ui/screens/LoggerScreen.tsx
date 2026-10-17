@@ -15,11 +15,27 @@ import { Button, Card, Field, Page, Sheet } from "../kit";
 import { LoopedDemo } from "../LoopedDemo";
 import { sessionLabel } from "../TodayCard";
 import { useToast } from "../Toast";
+import { LongFastBlock } from "../train/LongFastBlock";
 import { useSessionQuery } from "../train/useQuery";
 
 const RPES = [6, 7, 8, 9, 10];
 
+const STALE_MS = 12 * 3_600_000;
+
+function isStale(d: Draft, now: number): boolean {
+  return now - Date.parse(d.startedAt) > STALE_MS;
+}
+
 export function LoggerScreen() {
+  const { id } = useSessionQuery();
+  return (
+    <LongFastBlock id={id ?? "A"}>
+      <Logger />
+    </LongFastBlock>
+  );
+}
+
+function Logger() {
   const { id, variant, deload: qDeload } = useSessionQuery();
   const router = useRouter();
   const toast = useToast();
@@ -35,12 +51,17 @@ export function LoggerScreen() {
   const [notes, setNotes] = useState("");
   const [openDemo, setOpenDemo] = useState<number | null>(null);
   const started = useRef(false);
+  const [saving, setSaving] = useState(false);
+  // An unfinished session of another kind is never replaced silently.
+  const otherDraft = draft && plan && draft.templateId !== plan.template.id && !isStale(draft, now) ? draft : null;
 
-  // Start (or resume) the draft once the plan and last log are known.
+  // Start (or resume) the draft once the plan and last log are known. A draft older than
+  // 12 hours is yesterday's unfinished session: start fresh rather than log it under today.
   useEffect(() => {
     if (!plan || last === undefined || draft === undefined || started.current) return;
+    if (draft && draft.templateId !== plan.template.id && !isStale(draft, now)) return;
     started.current = true;
-    if (draft && draft.templateId === plan.template.id) return;
+    if (draft && draft.templateId === plan.template.id && !isStale(draft, now)) return;
     const rows = buildRows(plan.blocks);
     const fresh: Draft = {
       templateId: plan.template.id,
@@ -51,9 +72,9 @@ export function LoggerScreen() {
       sets: prefill(rows, last),
     };
     void saveDraft(fresh);
-  }, [plan, last, draft, variant, deload]);
+  }, [plan, last, draft, variant, deload, now]);
 
-  const active = draft && plan && draft.templateId === plan.template.id ? draft : null;
+  const active = draft && plan && draft.templateId === plan.template.id && !isStale(draft, now) ? draft : null;
   const rows = useMemo(() => (active ? buildRows(active.blocks) : []), [active]);
   useWakeLock(!!active);
 
@@ -66,6 +87,28 @@ export function LoggerScreen() {
   }, [now, active, settings]);
 
   if (!id || !plan) return <Page title="Log" back="/train">{null}</Page>;
+  if (otherDraft) {
+    return (
+      <Page title={sessionLabel(plan.template)} back="/train">
+        <Card title="Unfinished session">
+          <p className="mb-3">You have an unfinished {otherDraft.templateId} session from {formatClock(now - Date.parse(otherDraft.startedAt), false)} ago.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Button variant="primary" onClick={() => router.push(`/train/log?id=${otherDraft.templateId}&v=${otherDraft.variant}&d=${otherDraft.deload ? 1 : 0}`)}>
+              Resume it
+            </Button>
+            <Button
+              variant="danger"
+              onClick={async () => {
+                if (confirm(`Discard the unfinished ${otherDraft.templateId} session?`)) await saveDraft(null);
+              }}
+            >
+              Discard it
+            </Button>
+          </div>
+        </Card>
+      </Page>
+    );
+  }
   if (!active) return <Page title={sessionLabel(plan.template)} back={`/train/session?id=${id}`}>{null}</Page>;
 
   // Every change goes through mutateDraft, so taps in quick succession never undo each other.
@@ -216,7 +259,9 @@ export function LoggerScreen() {
           <Button
             variant="primary"
             big
+            disabled={saving}
             onClick={async () => {
+              setSaving(true);
               const { messages } = await saveWorkout(
                 {
                   templateId: active.templateId,

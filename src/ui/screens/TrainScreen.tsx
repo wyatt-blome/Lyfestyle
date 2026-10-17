@@ -54,7 +54,7 @@ export function TrainScreen() {
         <Notice tone="info">
           A session is in progress.{" "}
           <Link
-            className="underline"
+            className="btn inline-flex min-h-12 items-center font-semibold underline"
             href={draft ? `/train/log?id=${draft.templateId}&v=${draft.variant}&d=${draft.deload ? 1 : 0}` : run!.kind === "quick" ? "/train/quick" : run!.kind === "4x4" ? "/train/4x4" : "/train/follow"}
           >
             Resume
@@ -93,7 +93,7 @@ export function TrainScreen() {
               <Button onClick={() => router.push(`/train/session?id=${defaultEasy(session.id)}&v=easy`)}>Easy Day</Button>
             </div>
             <LinkButton href={`/train/session?id=${session.id}`}>See every move</LinkButton>
-            {plan.alternative && (
+            {plan.alternative && !restricted && !(deload && plan.alternative === "Q5") && (
               <LinkButton href={`/train/session?id=${plan.alternative}`}>Or: {sessionLabel(sessions.find((s) => s.id === plan.alternative)!)}</LinkButton>
             )}
           </div>

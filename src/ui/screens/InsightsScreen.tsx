@@ -55,10 +55,15 @@ function InsightCard({ insight: i, onEdit }: { insight: ExpertInsight; onEdit: (
         <p className="text-lg">{i.principle}</p>
         {ep && (
           <p className="text-base text-muted">
-            From {ep.guest} ({ep.date.slice(0, 4)}): {ep.title}
+            Linked episode: {ep.guest} ({ep.date.slice(0, 4)}) · {ep.title}
           </p>
         )}
-        <a href={i.url} target="_blank" rel="noreferrer noopener" className="break-all text-base text-info underline">
+        <a
+          href={i.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="btn inline-flex min-h-12 items-center self-start break-all text-base text-info underline"
+        >
           {i.url}
         </a>
         {i.myTake && (

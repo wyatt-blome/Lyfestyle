@@ -4,7 +4,8 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { checkInFast, endFast } from "@/client/fasts";
 import { logIntake, QUICK_DRINKS, wouldBreakFast } from "@/client/intake";
-import { formatTime, fromLocalInput, toLocalInput } from "@/lib/time";
+import { entryInFast } from "@/lib/fasting";
+import { formatTime, parseLocalInput, toLocalInput } from "@/lib/time";
 import type { Fast, IntakeKind, IntakeTemplate } from "@/lib/types";
 import { Button, Check, Field, Scale, Sheet } from "./kit";
 import { useToast } from "./Toast";
@@ -38,7 +39,8 @@ export function FastFlowsProvider({ children }: { children: ReactNode }) {
       const when = at ?? new Date().toISOString();
       const { breaks } = await logIntake(t, when);
       toast(`Logged ${t.name} at ${formatTime(when)}`, "good");
-      if (breaks) setBreakPrompt({ fast: breaks, at: when, viaFood: true });
+      // Never offer to end a fast at a future time (logIntake already skips those).
+      if (breaks && entryInFast(breaks.startAt, when, Date.now())) setBreakPrompt({ fast: breaks, at: when, viaFood: true });
     },
     [toast],
   );
@@ -67,8 +69,8 @@ export function FastFlowsProvider({ children }: { children: ReactNode }) {
         preset={addPreset}
         onClose={() => setAddPreset(null)}
         onSave={async (t, at) => {
-          setAddPreset(null);
           await logTemplate(t, at);
+          setAddPreset(null);
         }}
       />
       <ElectrolyteSheet
@@ -95,7 +97,7 @@ function BreakFastSheet({
   const toast = useToast();
   const [atLocal, setAtLocal] = useState("");
   const [busy, setBusy] = useState(false);
-  const at = prompt ? (atLocal ? fromLocalInput(atLocal) : prompt.at) : "";
+  const at = prompt ? ((atLocal && parseLocalInput(atLocal)) || prompt.at) : "";
   return (
     <Sheet
       open={!!prompt}
@@ -217,6 +219,8 @@ function AddEntryForm({
   preset: Partial<IntakeTemplate>;
   onSave: (t: IntakeTemplate, at: string) => Promise<void>;
 }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
   const [kind, setKind] = useState<IntakeKind>(preset.kind ?? "meal");
   const [name, setName] = useState(preset.name ?? "");
   const [at, setAt] = useState(() => toLocalInput(Date.now()));
@@ -231,13 +235,14 @@ function AddEntryForm({
   const num = (s: string) => (s.trim() === "" ? undefined : Number(s));
   const autoBreaks = kind === "meal" || kind === "snack" || (num(kcal) ?? 0) > 0;
   const breaksFast = breaksTouched ? breaks : autoBreaks;
+  const atIso = parseLocalInput(at);
 
   return (
     <form
       className="flex flex-col gap-3"
       onSubmit={async (e) => {
         e.preventDefault();
-        if (!name.trim()) return;
+        if (!name.trim() || !atIso || busy) return;
         const t: IntakeTemplate = {
           kind,
           name: name.trim(),
@@ -254,7 +259,14 @@ function AddEntryForm({
             .map((s) => s.trim())
             .filter(Boolean),
         };
-        await onSave({ ...t, breaksFast: wouldBreakFast(t) }, fromLocalInput(at));
+        setBusy(true);
+        try {
+          await onSave({ ...t, breaksFast: wouldBreakFast(t) }, atIso);
+        } catch (err) {
+          toast((err as Error).message || "Couldn't save that entry.", "bad");
+        } finally {
+          setBusy(false);
+        }
       }}
     >
       <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Kind">
@@ -274,8 +286,8 @@ function AddEntryForm({
       <Field label="What">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Breakfast, eggs, protein shake…" autoFocus />
       </Field>
-      <Field label="When">
-        <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
+      <Field label="When" hint={atIso ? undefined : "Pick a date and time."}>
+        <input type="datetime-local" required value={at} onChange={(e) => setAt(e.target.value)} />
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Amount">
@@ -306,7 +318,7 @@ function AddEntryForm({
       >
         Breaks a fast (anything with calories does)
       </Check>
-      <Button type="submit" variant="primary" big disabled={!name.trim()}>
+      <Button type="submit" variant="primary" big disabled={!name.trim() || !atIso || busy}>
         Save
       </Button>
     </form>

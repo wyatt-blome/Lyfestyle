@@ -15,6 +15,8 @@ export interface Stage {
   exerciseId?: string;
   loadLb?: number;
   reps?: number | string;
+  /** Carry distance per side. */
+  meters?: number;
   note?: string;
   /** 4×4 interval count. */
   intervals?: number;
@@ -47,10 +49,10 @@ export const LADDERS: Record<string, Stage[]> = {
     { label: "1¼ reps", loadLb: 40, reps: 8, note: "1¼ reps" },
   ],
   "kb-suitcase-carry": [
-    { label: "20 m/side", loadLb: 40, reps: "20 m" },
-    { label: "40 m/side", loadLb: 40, reps: "40 m" },
-    { label: "60 m/side", loadLb: 40, reps: "60 m" },
-    { label: "KB + DB on the same side", loadLb: 40, note: "add a DB in the same hand" },
+    { label: "20 m/side", loadLb: 40, meters: 20 },
+    { label: "40 m/side", loadLb: 40, meters: 40 },
+    { label: "60 m/side", loadLb: 40, meters: 60 },
+    { label: "KB + DB on the same side", loadLb: 40, meters: 60, note: "add a DB in the same hand" },
   ],
   "mcgill-big3": [
     { label: "5-3-1", reps: "5-3-1" },
@@ -110,7 +112,9 @@ export function prescribe(item: SessionItem, state?: ProgressionState): SessionI
       exerciseId: swingSwap ?? item.exerciseId,
       // Templates keep the light bells used in Quick 20 flows (e.g. 15 lb press); stages only raise.
       loadLb: st.loadLb !== undefined && item.loadLb !== undefined ? Math.max(st.loadLb, item.loadLb) : item.loadLb,
-      reps: key === "mcgill-big3" ? st.reps : item.reps,
+      // The stage sets the dose: Big 3 pyramid, goblet-squat and press reps, carry distance.
+      reps: st.reps !== undefined && item.reps !== undefined ? st.reps : item.reps,
+      meters: st.meters !== undefined && item.meters !== undefined ? st.meters : item.meters,
       note: [item.note, st.note].filter(Boolean).join("; ") || undefined,
       stageLabel: st.label,
     };

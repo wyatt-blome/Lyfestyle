@@ -44,7 +44,7 @@ export function DayTimeline({
         <span className="font-semibold">{hours.fasting.toFixed(1)} h</span> fasting ·{" "}
         <span className="font-semibold">{hours.eating.toFixed(1)} h</span> {hasFast ? "eating" : "not in a fast"}
       </p>
-      <div className="relative pt-6" aria-hidden>
+      <div className="relative pt-12" aria-hidden>
         {/* Entry markers sit above the bar; tap one to read it. */}
         {sorted.map((e) => {
           const left = fractionOfDay(Date.parse(e.at), day) * 100;
@@ -54,10 +54,9 @@ export function DayTimeline({
               type="button"
               tabIndex={-1}
               onClick={() => setPicked(picked === e.id ? null : e.id)}
-              className="absolute top-0 flex h-6 w-6 -translate-x-1/2 items-center justify-center"
-              // Inline because the global 48px button rule outranks utility classes. The entry list
-              // below has full-size targets; these dots are a glanceable extra.
-              style={{ left: `${left}%`, minHeight: 0 }}
+              // A 48 px target around a small dot (the entry list below has the full controls).
+              className="absolute top-0 flex h-12 w-12 -translate-x-1/2 items-center justify-center"
+              style={{ left: `${left}%` }}
             >
               <span
                 className="block h-3 w-3 rounded-full border-2"

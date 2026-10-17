@@ -7,17 +7,18 @@ import { sessionById, useDeloadReasons, useSessionPlan } from "@/client/sessionP
 import { useSettings } from "@/client/settings";
 import { useTodayPlan } from "@/client/today";
 import { useNow } from "@/client/useNow";
-import { defaultQuick, saveRun, saveWorkout, useActiveRun, useProgression, useWorkoutLogs, type ActiveRun } from "@/client/workouts";
+import { defaultQuick, deloadSafeQuick, saveRun, saveWorkout, useActiveRun, useProgression, useWorkoutLogs, type ActiveRun } from "@/client/workouts";
 import { allowedDuringLongFast, longFastActive } from "@/lib/fasting";
 import { BIG3_IDS, quickHint, quickScoreOf, stageOf } from "@/lib/progression";
 import { FOURBYFOUR_MODES, zones } from "@/lib/session";
-import { build4x4, buildQuick20, createRun, followAlong, position, programSeconds, type Run } from "@/lib/timer";
-import { dateKey } from "@/lib/time";
+import { build4x4, buildQuick20, createRun, endedEarly, finishedSegments, followAlong, programSeconds } from "@/lib/timer";
+import { dateKey, weekdayOf } from "@/lib/time";
 import type { SessionId, SessionTemplate, WorkoutLog } from "@/lib/types";
 import { sessions } from "@/seed";
 import { Badge, Button, Card, Field, LinkButton, Notice, Page } from "../kit";
 import { sessionLabel } from "../TodayCard";
 import { useToast } from "../Toast";
+import { LongFastBlock } from "../train/LongFastBlock";
 import { Runner } from "../train/Runner";
 import { useSessionQuery } from "../train/useQuery";
 import { WhyCards } from "../WhyCard";
@@ -54,7 +55,7 @@ export function QuickScreen() {
 }
 
 function QuickPicker() {
-  const { id: qId } = useSessionQuery();
+  const { id: qId, deload: qDeload } = useSessionQuery();
   const now = useNow(30_000);
   const settings = useSettings();
   const fast = useActiveFast();
@@ -63,10 +64,11 @@ function QuickPicker() {
   const reasons = useDeloadReasons(now) ?? [];
   const [picked, setPicked] = useState<SessionId | null>(null);
   if (!plan || !logs) return <Page title="Quick 20" back="/train">{null}</Page>;
-  const deload = reasons.length > 0;
+  const deload = qDeload ?? reasons.length > 0;
   const longFast = longFastActive(fast ?? undefined, now);
   const fallback = defaultQuick(logs, plan.week.cycleWeek, deload);
-  const id = picked ?? qId ?? fallback;
+  // Q5 is never run on a deload, whichever way it was picked.
+  const id = deloadSafeQuick(picked ?? qId ?? fallback, deload);
   const t = sessionById.get(id)!;
   const hidden = (q: SessionTemplate) => (longFast && !allowedDuringLongFast(q.id)) || (deload && q.id === "Q5");
   const scores = (q: SessionId) => logs.filter((l) => l.templateId === q && l.quick).map(quickScoreOf).reverse();
@@ -94,7 +96,10 @@ function QuickPicker() {
         <p className="text-sm text-muted">{id === fallback ? "Next in the cycle" : "Picked"}</p>
         <p className="text-3xl font-bold">{t.name}</p>
         <p className="mt-1">{t.summary}</p>
-        <p className="mt-1 text-base text-muted">3:00 prep → 15:00 work → 2:00 downshift · {Math.round(programSeconds(buildQuick20(t)) / 60)} min</p>
+        <p className="mt-1 text-base text-muted">
+          3:00 prep → 15:00 work → 2:00 downshift · {quickMinutes(t)} min
+          {plan.weekday === "fri" ? " · then 5 min mobility" : ""}
+        </p>
         {last && (
           <p className="mt-2 text-lg">
             Last {t.id}: <span className="font-semibold">{describeScore(t, last)}</span>
@@ -106,7 +111,7 @@ function QuickPicker() {
           variant="primary"
           big
           className="mt-3 w-full"
-          onClick={() => void begin({ kind: "quick", templateId: t.id, variant: "full", run: createRun(buildQuick20(t), Date.now()) })}
+          onClick={() => void begin({ kind: "quick", templateId: t.id, variant: "full", deload, run: createRun(buildQuick20(t), Date.now()) })}
         >
           Start {t.id}
         </Button>
@@ -133,6 +138,12 @@ function QuickPicker() {
   );
 }
 
+/** Timed total, or the listed 20 when part of it is open-ended (Q2's rounds). */
+function quickMinutes(t: SessionTemplate): number {
+  const segs = buildQuick20(t);
+  return segs.some((x) => x.durationSec === null) ? t.fullMin : Math.round(programSeconds(segs) / 60);
+}
+
 function describeScore(t: SessionTemplate, l: WorkoutLog): string {
   const mode = t.timer?.mode;
   if (!l.quick) return "–";
@@ -146,22 +157,37 @@ function describeScore(t: SessionTemplate, l: WorkoutLog): string {
 export function FourByFourScreen() {
   return (
     <WithActiveRun>
-      <FourByFourSetup />
+      <LongFastBlock id="C">
+        <FourByFourSetup />
+      </LongFastBlock>
     </WithActiveRun>
   );
 }
 
+/** 4×4 work target by stage: ~85%, then 85–90%, then 90–95% of HRmax. */
+const STAGE_PCT: [number, number][] = [
+  [0.85, 0.85],
+  [0.85, 0.9],
+  [0.9, 0.95],
+];
+
 function FourByFourSetup() {
-  const { variant } = useSessionQuery();
+  const { variant, deload: qDeload } = useSessionQuery();
   const settings = useSettings();
   const progression = useProgression();
+  const now = useNow(60_000);
+  const reasons = useDeloadReasons(now);
   const [mode, setMode] = useState(0);
   const t = sessionById.get("C")!;
-  if (!settings || !progression) return <Page title="Norwegian 4×4" back="/train">{null}</Page>;
+  if (!settings || !progression || !reasons) return <Page title="Norwegian 4×4" back="/train">{null}</Page>;
   const z = zones(settings.age);
-  const st = stageOf("4x4", progression.get("4x4"));
+  const state = progression.get("4x4");
+  const st = stageOf("4x4", state);
+  const workPct = STAGE_PCT[Math.min(STAGE_PCT.length, state?.stage ?? 1) - 1];
   const short = variant === "short";
-  const intervals = short ? 2 : (st?.intervals ?? 4);
+  const deload = qDeload ?? reasons.length > 0;
+  // Short Day and deloads both do 2 intervals (~60% of 4).
+  const intervals = short || deload ? 2 : (st?.intervals ?? 4);
   const m = FOURBYFOUR_MODES[mode];
   return (
     <Page title="Norwegian 4×4" back="/train/session?id=C">
@@ -205,7 +231,7 @@ function FourByFourSetup() {
         <p className="mt-2 text-base">No strap? Work pace = 2–3 words, not a sentence.</p>
       </Card>
       <p className="text-lg">
-        Today: {short ? "Short Day: 6 min warm-up + 2 intervals + 4 min cool-down" : `${st?.label ?? "4 intervals"}`}
+        Today: {short ? "Short Day: 6 min warm-up + 2 intervals + 4 min cool-down" : deload ? "Deload: 2 intervals, nothing to failure" : `${st?.label ?? "4 intervals"}`}
       </p>
       <Button
         variant="primary"
@@ -215,7 +241,7 @@ function FourByFourSetup() {
             ...s,
             items: s.items.map((i) => ({ ...i, exerciseId: m.id })),
           }));
-          void begin({ kind: "4x4", templateId: "C", variant: short ? "short" : "full", run: createRun(segs, Date.now()), mode: m.label, hr: [] });
+          void begin({ kind: "4x4", templateId: "C", variant: short ? "short" : "full", deload, workPct, run: createRun(segs, Date.now()), mode: m.label, hr: [] });
         }}
       >
         Start 4×4
@@ -228,17 +254,23 @@ function FourByFourSetup() {
 // ---------- Follow-along (M, Daily 10, Z) ----------
 
 export function FollowScreen() {
+  const { id } = useSessionQuery();
   return (
     <WithActiveRun>
-      <FollowSetup />
+      <LongFastBlock id={id ?? "DAILY10"}>
+        <FollowSetup />
+      </LongFastBlock>
     </WithActiveRun>
   );
 }
 
 function FollowSetup() {
-  const { id, variant } = useSessionQuery();
-  const plan = useSessionPlan(id ?? "DAILY10", variant, false);
-  if (!plan) return null;
+  const { id, variant, deload: qDeload } = useSessionQuery();
+  const now = useNow(60_000);
+  const reasons = useDeloadReasons(now);
+  const deload = qDeload ?? (reasons?.length ?? 0) > 0;
+  const plan = useSessionPlan(id ?? "DAILY10", variant, deload);
+  if (!plan || !reasons) return null;
   const t = plan.template;
   const segs = followAlong(plan.blocks);
   return (
@@ -251,7 +283,7 @@ function FollowSetup() {
       <p className="text-base text-muted">
         {segs.length} steps · about {variant === "short" ? t.shortMin : t.fullMin} min
       </p>
-      <Button variant="primary" big onClick={() => void begin({ kind: "follow", templateId: t.id, variant, run: createRun(segs, Date.now()) })}>
+      <Button variant="primary" big onClick={() => void begin({ kind: "follow", templateId: t.id, variant, deload, run: createRun(segs, Date.now()) })}>
         Start
       </Button>
     </Page>
@@ -260,24 +292,23 @@ function FollowSetup() {
 
 // ---------- Summary / save ----------
 
-function completedWork(run: Run) {
-  const p = position(run, run.endedAt ?? Date.now());
-  return run.segments.slice(0, p.done ? run.segments.length : p.index).filter((s) => s.kind === "work");
-}
 
 function Summary({ active, onClose }: { active: ActiveRun; onClose: () => void }) {
   const router = useRouter();
   const toast = useToast();
   const settings = useSettings();
   const t = sessionById.get(active.templateId)!;
-  const done = completedWork(active.run);
+  // What was actually finished before End (an early end saves a partial session).
+  // A summary without an end time means the program ran out, so every segment finished.
+  const done = finishedSegments(active.run, active.run.endedAt ?? Number.POSITIVE_INFINITY).filter((s) => s.kind === "work");
+  const [busy, setBusy] = useState(false);
   const mode = t.timer?.mode;
   const [rounds, setRounds] = useState(String(mode === "AMRAP" ? active.run.counters.rounds : done.length));
   const [rungs, setRungs] = useState(String(active.run.counters.rungs));
   const [extra, setExtra] = useState("");
   const [rpe, setRpe] = useState("");
   const [notes, setNotes] = useState("");
-  const early = !!active.run.endedAt && !position(active.run, active.run.endedAt).done;
+  const early = endedEarly(active.run);
 
   return (
     <Page title="Nice work">
@@ -316,7 +347,9 @@ function Summary({ active, onClose }: { active: ActiveRun; onClose: () => void }
       <Button
         variant="primary"
         big
+        disabled={busy}
         onClick={async () => {
+          setBusy(true);
           const startedAt = new Date(active.run.startedAt).toISOString();
           const log: Omit<WorkoutLog, "id" | "createdAt" | "updatedAt"> = {
             templateId: t.id,
@@ -330,21 +363,23 @@ function Summary({ active, onClose }: { active: ActiveRun; onClose: () => void }
             quick: active.kind === "quick" ? { rounds: Number(rounds) || 0, rungs: Number(rungs) || 0, extraReps: Number(extra) || 0 } : undefined,
             hr: active.hr && active.hr.some(Boolean) ? { intervals: active.hr.filter(Boolean) } : undefined,
           };
-          // Progression: the 4×4 counts its intervals; follow-alongs move the Big 3; Quick 20s
-          // progress by score (shown as a hint), not by stage.
-          // What was planned, as one item per work segment, so "did every set" compares like with like.
-          const counts = (x: { hrEntry?: boolean; kind: string }) => x.kind === "work" && (active.kind !== "4x4" || x.hrEntry);
+          // Progression (D17): the 4×4 counts finished intervals, follow-alongs move the Big 3 only,
+          // Quick 20s progress by score. Planned = one item per counted segment, so "every set
+          // done" compares like with like; an early end simply finishes fewer of them.
+          const counts = (x: { hrEntry?: boolean; kind: string; items: { exerciseId: string }[] }) =>
+            x.kind === "work" && (active.kind === "4x4" ? !!x.hrEntry : BIG3_IDS.includes(x.items[0]?.exerciseId ?? ""));
           const planned = [{ label: t.name, items: active.run.segments.filter(counts).map((x) => ({ ...x.items[0], sets: 1 })) }];
-          // Follow-alongs only move the Big 3 (an optional carry on a walk shouldn't advance the carry).
-          const sets =
-            active.kind === "4x4"
-              ? log.sets.filter((x) => done[x.setIndex]?.hrEntry)
-              : log.sets.filter((x) => BIG3_IDS.includes(x.exerciseId));
-          const { messages } = await saveWorkout({ ...log, sets }, planned, { progress: active.kind !== "quick" && !early });
+          const progress = active.kind !== "quick" && !active.deload && !(active.kind === "4x4" && active.variant === "short");
+          const { messages } = await saveWorkout(log, planned, {
+            progress,
+            progressSets: (x) => !!done[x.setIndex] && counts(done[x.setIndex]),
+          });
           await saveRun(null);
           toast(messages.length ? `Saved. ${messages.join(" · ")}` : "Saved", "good");
           onClose();
-          router.push("/train");
+          // Friday's Quick 20 is "20 + 5 min mobility": go straight to the short Daily 10.
+          const friday = weekdayOf(dateKey(Date.now(), settings?.tz)) === 5;
+          router.push(active.kind === "quick" && friday && !early ? "/train/follow?id=DAILY10&v=short" : "/train");
         }}
       >
         Save

@@ -7,8 +7,12 @@ import {
   canStart,
   currentStreak,
   dueReminders,
+  editedTimes,
   endStatus,
+  entryInFast,
   longFastActive,
+  overlapError,
+  parseHours,
   progress,
   requiresDoctorAck,
   stageIndexAt,
@@ -16,7 +20,7 @@ import {
   targetHoursFor,
   validateTimes,
 } from "./fasting";
-import { HOUR_MS } from "./time";
+import { HOUR_MS, toLocalInput } from "./time";
 
 const TZ = "America/Denver";
 
@@ -38,6 +42,24 @@ describe("protocols", () => {
     expect(targetHoursFor("OMAD")).toBe(23);
     expect(targetHoursFor("48h")).toBe(48);
     expect(targetHoursFor("custom", 30)).toBe(30);
+  });
+
+  it("never returns NaN for custom hours", () => {
+    expect(targetHoursFor("custom", NaN)).toBe(16);
+    expect(targetHoursFor("custom", Infinity)).toBe(16);
+    expect(targetHoursFor("custom", 500)).toBe(120);
+  });
+
+  it("parses custom hours leniently", () => {
+    expect(parseHours("16")).toBe(16);
+    expect(parseHours("16,5")).toBe(16.5);
+    expect(parseHours(" 16.5 ")).toBe(16.5);
+    expect(parseHours("36 h")).toBe(36);
+    expect(parseHours("20hours")).toBe(20);
+    expect(parseHours("abc")).toBeNull();
+    expect(parseHours("16:8")).toBeNull();
+    expect(parseHours("0")).toBeNull();
+    expect(parseHours("")).toBeNull();
   });
 });
 
@@ -94,6 +116,52 @@ describe("progress is derived from timestamps", () => {
   });
 });
 
+describe("overlapping fasts", () => {
+  const prev = fast({ id: "p", startAt: "2026-10-09T02:00:00Z", endAt: "2026-10-09T18:00:00Z" });
+  const next = fast({ id: "n", startAt: "2026-10-10T02:00:00Z", endAt: "2026-10-10T18:00:00Z" });
+
+  it("rejects a start before the previous fast ended", () => {
+    expect(overlapError("2026-10-09T17:00:00Z", undefined, [prev], undefined, TZ)).toMatch(
+      /^That overlaps your previous fast, which ended at Fri 12:00\sPM\.$/,
+    );
+    expect(overlapError("2026-10-09T18:00:00Z", undefined, [prev], undefined, TZ)).toBeNull();
+    // Deleted fasts don't count.
+    expect(overlapError("2026-10-09T17:00:00Z", undefined, [{ ...prev, deletedAt: "x" }], undefined, TZ)).toBeNull();
+  });
+
+  it("ignores the fast being edited and checks both ends", () => {
+    expect(overlapError(prev.startAt, prev.endAt, [prev, next], "p", TZ)).toBeNull();
+    expect(overlapError(prev.startAt, "2026-10-10T03:00:00Z", [prev, next], "p", TZ)).toMatch(/next fast/);
+    expect(overlapError(next.startAt, undefined, [prev, fast({ id: "a", startAt: "2026-10-10T01:00:00Z" })], undefined, TZ)).toMatch(
+      /current fast/,
+    );
+  });
+});
+
+describe("entries and the running fast", () => {
+  it("links only entries from the start up to now", () => {
+    const now = Date.parse("2026-10-10T12:00:00Z");
+    const start = "2026-10-10T02:00:00Z";
+    expect(entryInFast(start, "2026-10-10T11:00:00Z", now)).toBe(true);
+    expect(entryInFast(start, "2026-10-10T01:00:00Z", now)).toBe(false);
+    expect(entryInFast(start, "2026-10-10T12:00:30Z", now)).toBe(true);
+    // A future-dated entry doesn't offer to end the fast.
+    expect(entryInFast(start, "2026-10-10T14:00:00Z", now)).toBe(false);
+  });
+});
+
+describe("editing a finished fast", () => {
+  it("sends only the field that changed", () => {
+    const f = { startAt: "2026-10-10T02:00:30.000Z", endAt: "2026-10-10T18:00:45.000Z" };
+    expect(editedTimes(f, toLocalInput(f.startAt), toLocalInput(f.endAt))).toEqual({});
+    const newEnd = toLocalInput(Date.parse(f.endAt) + HOUR_MS);
+    const out = editedTimes(f, toLocalInput(f.startAt), newEnd);
+    expect(out.startAt).toBeUndefined();
+    expect(out.endAt).toBe(new Date(Date.parse("2026-10-10T19:00:00.000Z")).toISOString());
+    expect(() => editedTimes(f, "", toLocalInput(f.endAt))).toThrow(/valid/);
+  });
+});
+
 describe("history", () => {
   // Fasts ending at 18:00 UTC = noon in Denver, so each lands on its own local day.
   const days = ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-09", "2026-10-10"];
@@ -134,5 +202,15 @@ describe("reminders", () => {
     const ended = { ...f, status: "completed" as const, endAt: new Date(start + 16 * HOUR_MS).toISOString() };
     expect(dueReminders([ended], start + 23.6 * HOUR_MS).map((r) => r.kind)).toEqual(["window"]);
     expect(dueReminders([ended], start + 22 * HOUR_MS)).toEqual([]);
+  });
+
+  it("skips the window reminder once another fast has started", () => {
+    const start = Date.parse("2026-10-10T02:00:00Z");
+    const end = start + 16 * HOUR_MS;
+    const ended = fast({ id: "f1", startAt: new Date(start).toISOString(), endAt: new Date(end).toISOString() });
+    const next = fast({ id: "f2", startAt: new Date(end + 2 * HOUR_MS).toISOString() });
+    expect(dueReminders([next, ended], start + 23.6 * HOUR_MS).map((r) => r.kind)).toEqual([]);
+    // A deleted later fast doesn't count.
+    expect(dueReminders([{ ...next, deletedAt: "x" }, ended], start + 23.6 * HOUR_MS).map((r) => r.kind)).toEqual(["window"]);
   });
 });

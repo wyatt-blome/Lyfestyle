@@ -22,8 +22,10 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
-    // Food lookups (USDA, Open Food Facts) always go to the network.
+    // Food lookups and push go to the network, and so does Supabase (sync, sign-in): personal
+    // data and tokens never sit in a cache.
     { matcher: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith("/api/"), handler: new NetworkOnly() },
+    { matcher: ({ url }) => url.hostname.endsWith(".supabase.co") || url.hostname.endsWith(".supabase.in"), handler: new NetworkOnly() },
     // Exercise demos: the build's /media copies, and the ExerciseDB/wger originals (opaque when
     // fetched ahead of time with no-cors, hence status 0).
     {
@@ -35,7 +37,8 @@ const serwist = new Serwist({
         cacheName: "demo-media",
         plugins: [
           new CacheableResponsePlugin({ statuses: [0, 200] }),
-          new ExpirationPlugin({ maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 365 }),
+          // Opaque copies count heavily against storage quota: drop them first if space runs out.
+          new ExpirationPlugin({ maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 365, purgeOnQuotaError: true }),
         ],
       }),
     },

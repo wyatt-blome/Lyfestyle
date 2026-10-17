@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "validate": "npm run typecheck && npm run lint && npm run test && npm run build",
     "media": "node scripts/fetch-media.mjs",
-    "prebuild": "node scripts/fetch-media.mjs"
+    "prebuild": "node scripts/fetch-media.mjs",
+    "test:e2e": "node e2e/run.mjs"
   },
   "engines": {
     "node": ">=22"

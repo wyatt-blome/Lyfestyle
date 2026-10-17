@@ -48,7 +48,7 @@ export function LineChart({
       {series.map((s, i) => {
         const p = s.points.find((q) => q.date === readDate);
         return p ? (
-          <span key={s.name}>
+          <span key={`${s.name}-${i}`}>
             {i > 0 ? " · " : ""}
             <strong className="text-ink">
               {fmt(p.value)} {unit}
@@ -96,8 +96,8 @@ export function LineChart({
       legend={
         series.length > 1 ? (
           <ul className="flex flex-wrap gap-4 text-sm text-muted" aria-hidden>
-            {series.map((s) => (
-              <li key={s.name} className="flex items-center gap-2">
+            {series.map((s, i) => (
+              <li key={`${s.name}-${i}`} className="flex items-center gap-2">
                 <svg width="20" height="8" aria-hidden>
                   <line x1="0" y1="4" x2="20" y2="4" stroke={s.color} strokeWidth="2" strokeDasharray={s.dashed ? "4 3" : undefined} />
                 </svg>
@@ -126,8 +126,8 @@ export function LineChart({
           onBlur={() => setActive(null)}
           className="touch-pan-y select-none"
         >
-          {ticks.map((t) => (
-            <g key={t}>
+          {ticks.map((t, i) => (
+            <g key={`${t}-${i}`}>
               <line x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} stroke="var(--color-line)" strokeWidth="1" />
               <text x={PAD.left - 6} y={y(t) + 4} textAnchor="end" fontSize="12" fill="var(--color-muted)" className="tabular">
                 {fmt(t)}
@@ -149,8 +149,8 @@ export function LineChart({
           {activeDate && (
             <line x1={x(activeDate)} x2={x(activeDate)} y1={PAD.top} y2={PAD.top + innerH} stroke="var(--color-muted)" strokeWidth="1" />
           )}
-          {series.map((s) => (
-            <g key={s.name}>
+          {series.map((s, si) => (
+            <g key={`${s.name}-${si}`}>
               <polyline
                 fill="none"
                 stroke={s.color}
@@ -160,11 +160,11 @@ export function LineChart({
                 strokeDasharray={s.dashed ? "6 4" : undefined}
                 points={s.points.map((p) => `${x(p.date)},${y(p.value)}`).join(" ")}
               />
-              {s.points.map((p) => {
+              {s.points.map((p, pi) => {
                 const on = p.date === activeDate || (s.points.length <= 12 && !activeDate) || p.date === lastDate;
                 return on ? (
                   <circle
-                    key={p.date}
+                    key={`${p.date}-${pi}`}
                     cx={x(p.date)}
                     cy={y(p.value)}
                     r={p.date === activeDate ? 5 : 4}

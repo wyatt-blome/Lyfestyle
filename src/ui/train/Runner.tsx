@@ -25,6 +25,12 @@ const KIND_TONE = {
   cooldown: "text-info",
 };
 
+/** "155–173" for 85–95%, or "~155" when the stage aims at one level (stage 1: ~85%). */
+function workTarget(max: number, pct: [number, number] = [0.85, 0.95]): string {
+  const [a, b] = pct.map((x) => Math.round(max * x));
+  return a === b ? `~${a}` : `${a}–${b}`;
+}
+
 function moveName(i?: SessionItem): string {
   if (!i) return "";
   return exerciseById.get(i.exerciseId)?.name ?? i.exerciseId;
@@ -113,7 +119,7 @@ export function Runner({ active, title, onDone }: { active: ActiveRun; title: st
             {z && (seg.kind === "work" || seg.kind === "rest" || seg.kind === "warmup") && active.kind === "4x4" && (
               <p className="text-center text-lg tabular">
                 {seg.kind === "work"
-                  ? `Target ${z.work[0]}–${z.work[1]} bpm in the last 2 min · 2–3 words, not a sentence`
+                  ? `Target ${workTarget(z.max, active.workPct)} bpm in the last 2 min · 2–3 words, not a sentence`
                   : seg.kind === "warmup"
                     ? `Easy: ${z.warmup[0]}–${z.warmup[1]} bpm`
                     : `Recover to ~${z.recovery} bpm`}
@@ -143,7 +149,7 @@ export function Runner({ active, title, onDone }: { active: ActiveRun; title: st
 
             {ex && <LoopedDemo exercise={ex} size="lg" />}
 
-            {hrRound > 0 && seg.kind === "rest" && (
+            {hrRound > 0 && (seg.kind === "rest" || seg.kind === "cooldown") && (
               <div className="rounded-2xl bg-surface p-3">
                 <p className="mb-2 text-base">Interval {hrRound} heart rate {hrSaved ? "(saved)" : "(optional)"}</p>
                 <div className="grid grid-cols-3 gap-2">
@@ -206,7 +212,9 @@ export function Runner({ active, title, onDone }: { active: ActiveRun; title: st
             onClick={() => {
               unlockAudio();
               const t = Date.now();
-              change((r) => advance(r, t));
+              // Only end the segment that was on screen: a double tap never skips two.
+              const shown = p.index;
+              change((r) => (position(r, t).index === shown ? advance(r, t) : r));
             }}
           >
             Next

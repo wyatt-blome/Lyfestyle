@@ -7,7 +7,7 @@ import { quickForWeek, nextQuick } from "@/lib/rotation";
 import { plannedSets } from "@/lib/session";
 import type { Run } from "@/lib/timer";
 import type { ProgressionState, SessionBlock, SessionId, WorkoutLog } from "@/lib/types";
-import { defaultRotation } from "@/seed";
+import { defaultRotation, exerciseById } from "@/seed";
 import { getSettings } from "./settings";
 
 export function useWorkoutLogs(): WorkoutLog[] | undefined {
@@ -32,29 +32,61 @@ export function useProgression(): Map<string, ProgressionState> | undefined {
   }, []);
 }
 
-/** Save a finished session and move progression on. Returns any "next stage" messages. */
-export async function saveWorkout(
+/** Weights that exist for this exercise: bells for kettlebell moves, dumbbells for dumbbell moves. */
+function gearFor(exerciseId: string, bells: number[], dumbbells: number[]): number[] {
+  const eq = exerciseById.get(exerciseId)?.equipment;
+  if (eq === "kettlebell") return bells;
+  if (eq === "dumbbell") return dumbbells;
+  return [...bells, ...dumbbells];
+}
+
+const saving = new Map<string, Promise<{ log: WorkoutLog; messages: string[] }>>();
+
+/**
+ * Save a finished session and move progression on. Returns any "next stage" messages.
+ * Idempotent per session (template + start time), so a double tap on Save saves once.
+ * `progressSets` limits which sets count toward progression (the full log is always saved).
+ */
+export function saveWorkout(
   log: Omit<WorkoutLog, "id" | "createdAt" | "updatedAt">,
   blocks: SessionBlock[],
-  opts: { progress: boolean } = { progress: true },
+  opts: { progress: boolean; progressSets?: (s: WorkoutLog["sets"][number]) => boolean } = { progress: true },
 ): Promise<{ log: WorkoutLog; messages: string[] }> {
+  const key = `${log.templateId}|${log.startedAt}`;
+  const inFlight = saving.get(key);
+  if (inFlight) return inFlight;
+  const p = doSave(log, blocks, opts);
+  saving.set(key, p);
+  return p;
+}
+
+async function doSave(
+  log: Omit<WorkoutLog, "id" | "createdAt" | "updatedAt">,
+  blocks: SessionBlock[],
+  opts: { progress: boolean; progressSets?: (s: WorkoutLog["sets"][number]) => boolean },
+): Promise<{ log: WorkoutLog; messages: string[] }> {
+  const already = (await db().workoutLogs.where("templateId").equals(log.templateId).toArray()).find(
+    (l) => l.startedAt === log.startedAt && !l.deletedAt,
+  );
+  if (already) return { log: already, messages: [] };
   const saved = await create(db().workoutLogs, log);
   const messages: string[] = [];
   if (!opts.progress) return { log: saved, messages };
   const settings = await getSettings();
-  const gear = [...settings.bellsLb, ...settings.dumbbellsLb];
   const planned = new Map<string, number>();
   for (const [id, n] of plannedSets(blocks)) {
     const key = ladderKey(id) ?? id;
     planned.set(key, (planned.get(key) ?? 0) + n);
   }
   const items = new Map(blocks.flatMap((b) => b.items).map((i) => [ladderKey(i.exerciseId) ?? i.exerciseId, i]));
-  for (const [key, result] of resultsFromLog(saved, planned)) {
+  const counted = opts.progressSets ? { ...saved, sets: saved.sets.filter(opts.progressSets) } : saved;
+  for (const [key, result] of resultsFromLog(counted, planned)) {
     const item = items.get(key);
     const range = parseRange(item?.reps);
     if (!LADDERS[key] && !range) continue;
     const existing = await db().progression.where("exerciseId").equals(key).first();
     const prev = existing ?? { ...initialState(key, item), currentLoadLb: result.sets.find((s) => s.loadLb)?.loadLb ?? item?.loadLb ?? 0 };
+    const gear = gearFor(item?.exerciseId ?? key, settings.bellsLb, settings.dumbbellsLb);
     const u = applyResult(key, prev, result, gear, range);
     if (existing) await update(db().progression, existing.id, u.next);
     else await create(db().progression, u.next);
@@ -89,6 +121,10 @@ export interface ActiveRun {
   run: Run;
   mode?: string;
   hr?: { peak: number; avg: number }[];
+  /** Started on a deload day: nothing moves a stage. */
+  deload?: boolean;
+  /** 4×4 work target as a share of HRmax, from the stage. */
+  workPct?: [number, number];
 }
 
 const RUN_KEY = "run:active";
@@ -148,11 +184,15 @@ export async function mutateDraft(fn: (d: Draft) => Draft): Promise<void> {
 // ---------- Quick 20 default ----------
 
 /** The picker defaults to the next Quick 20 in the cycle: after the last one done, else this week's. */
+/** Q5 is the hardest Quick 20: skipped on deloads (Q6 instead). */
+export function deloadSafeQuick(id: SessionId, deload: boolean): SessionId {
+  return deload && id === "Q5" ? "Q6" : id;
+}
+
 export function defaultQuick(logs: WorkoutLog[], cycleWeek: number, deload: boolean): SessionId {
   const cycle = defaultRotation.quickCycle;
   const last = logs.find((l) => cycle.includes(l.templateId));
-  let q = last ? nextQuick(defaultRotation, last.templateId) : quickForWeek(defaultRotation, cycleWeek);
-  // Q5 is skipped on deloads.
-  if (deload && q === "Q5") q = "Q6";
-  return q;
+  const q = last ? nextQuick(defaultRotation, last.templateId) : quickForWeek(defaultRotation, cycleWeek);
+  // On any deload day the Quick 20 is Q6, the S&S deload (so Q5 is never offered).
+  return deload ? "Q6" : q;
 }
