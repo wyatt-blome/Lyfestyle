@@ -1,0 +1,21 @@
+/node_modules
+/.next/
+/out/
+/build
+/coverage
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+.env*
+!.env.example
+.vercel
+npm-debug.log*
+# service worker built by Serwist at build time
+/public/sw.js*
+/public/swe-worker*
+# personal backups
+fast-and-move-backup-*.json
+/test-results/
+/public/media/
+/.e2e-tools/
+/playwright-report/

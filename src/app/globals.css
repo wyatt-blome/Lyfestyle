@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0b0f0e;
+  --color-surface: #141a19;
+  --color-surface-2: #1c2422;
+  --color-line: #4a5754;
+  --color-ink: #eef3f1;
+  --color-muted: #9aa8a4;
+  --color-accent: #f2a541;
+  --color-accent-ink: #1b1204;
+  --color-good: #5fd39a;
+  --color-warn: #f2c94c;
+  --color-bad: #ff6b5e;
+  --color-info: #6fb8ff;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  overflow-x: clip;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+body {
+  font-size: 18px;
+  line-height: 1.45;
+  min-height: 100dvh;
+}
+
+/* Big, sweaty-hand-friendly controls everywhere. */
+button,
+[role="button"],
+a.btn,
+select,
+input,
+textarea {
+  min-height: 48px;
+}
+
+input,
+select,
+textarea {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--color-ink);
+  font-size: 18px;
+  width: 100%;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: 28px;
+  min-height: 28px;
+  height: 28px;
+  accent-color: var(--color-accent);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 84px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

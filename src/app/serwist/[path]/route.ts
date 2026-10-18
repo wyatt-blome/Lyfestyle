@@ -1,0 +1,15 @@
+import { createSerwistRoute } from "@serwist/turbopack";
+import { exercises } from "@/seed";
+import { APP_ROUTES } from "@/ui/routes";
+
+// One revision per deployment, so every screen's cached HTML refreshes together. Not the commit
+// SHA: a redeploy after changing environment variables reuses it while the chunks change.
+const revision = process.env.VERCEL_DEPLOYMENT_ID ?? `${Date.now()}`;
+
+export const { dynamic, dynamicParams, revalidate, generateStaticParams, GET } = createSerwistRoute({
+  swSrc: "src/app/sw.ts",
+  useNativeEsbuild: true,
+  // Every screen is a static page rendered on the device, so precaching them all makes the
+  // whole app open offline after the first visit.
+  additionalPrecacheEntries: [...APP_ROUTES, ...exercises.map((e) => `/train/exercises/${e.id}`)].map((url) => ({ url, revision })),
+});

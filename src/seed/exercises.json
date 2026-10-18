@@ -1,0 +1,1092 @@
+[
+  {
+    "id": "kb-swing-2h",
+    "name": "Two-hand kettlebell swing",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 40,
+    "unit": "reps",
+    "cues": [
+      "Hike the bell high between thighs",
+      "Snap hips; squeeze glutes and quads",
+      "Float the bell; exhale sharply at top"
+    ],
+    "faults": [
+      "Squatting the swing instead of hinging",
+      "Lifting the bell with the arms"
+    ],
+    "swapIds": [
+      "kb-deadlift",
+      "kb-swing-1h"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/UHJlbu3.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "kb-swing-1h",
+    "name": "One-hand kettlebell swing",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 40,
+    "unit": "reps",
+    "cues": [
+      "Square shoulders; resist the twist",
+      "Pack the working shoulder down",
+      "Same crisp hip snap as two-hand"
+    ],
+    "faults": [
+      "Rotating the torso toward the bell",
+      "Shoulder shrugging up at the top"
+    ],
+    "swapIds": [
+      "kb-swing-2h"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/UHJlbu3.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "kb-deadlift",
+    "name": "Kettlebell deadlift",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 40,
+    "unit": "reps",
+    "cues": [
+      "Push hips back, shins near vertical",
+      "Flat back, chest proud",
+      "Drive through feet; stand tall"
+    ],
+    "faults": [
+      "Rounding the lower back",
+      "Leaning back at lockout"
+    ],
+    "swapIds": [
+      "kb-swing-2h",
+      "kb-sl-rdl"
+    ],
+    "media": {
+      "primary": "wger",
+      "imageUrl": "https://wger.de/media/exercise-images/1003/772d6e47-3865-4944-9255-7435d0b06782.png",
+      "credit": "wger.de (CC BY-SA 4.0)",
+      "approx": false
+    }
+  },
+  {
+    "id": "kb-goblet-squat",
+    "name": "Goblet squat",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 40,
+    "unit": "reps",
+    "cues": [
+      "Bell at chest, elbows down",
+      "Knees track over toes",
+      "Sit between heels; stand tall"
+    ],
+    "faults": [
+      "Heels lifting off the floor",
+      "Chest collapsing forward"
+    ],
+    "swapIds": [
+      "kb-prying-squat",
+      "db-split-squat"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/ZA8b5hc.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "kb-prying-squat",
+    "name": "Goblet prying squat (hold)",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 15,
+    "unit": "seconds",
+    "cues": [
+      "Sit deep, bell at chest",
+      "Elbows pry knees gently apart",
+      "Breathe slow; shift side to side"
+    ],
+    "faults": [
+      "Rounding the back at the bottom",
+      "Forcing range past comfort"
+    ],
+    "swapIds": [
+      "deep-squat-hold"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/ZA8b5hc.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "kb-tgu",
+    "name": "Turkish get-up",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 10,
+    "unit": "reps",
+    "cues": [
+      "Eyes on the bell throughout",
+      "Arm locked, wrist straight",
+      "Slow, deliberate, one step at a time"
+    ],
+    "faults": [
+      "Bent elbow or loose wrist",
+      "Rushing through the transitions"
+    ],
+    "swapIds": [
+      "kb-half-tgu",
+      "kb-arm-bar"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/Ha7SZ3y.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "kb-half-tgu",
+    "name": "Half get-up (to sit/high bridge)",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 10,
+    "unit": "reps",
+    "cues": [
+      "Punch the bell to the ceiling",
+      "Roll to elbow, then hand",
+      "Lift hips to high bridge"
+    ],
+    "faults": [
+      "Losing sight of the bell",
+      "Shoulder shrugging toward ear"
+    ],
+    "swapIds": [
+      "kb-tgu"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/Ha7SZ3y.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "kb-arm-bar",
+    "name": "Kettlebell arm bar",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 10,
+    "unit": "seconds",
+    "cues": [
+      "Arm vertical, wrist straight",
+      "Roll slowly onto your side",
+      "Pack shoulder; breathe calmly"
+    ],
+    "faults": [
+      "Arm drifting off vertical",
+      "Rolling too far, too fast"
+    ],
+    "swapIds": [
+      "kb-halo"
+    ],
+    "media": {
+      "primary": "none",
+      "approx": false
+    }
+  },
+  {
+    "id": "kb-halo",
+    "name": "Kettlebell halo",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 10,
+    "unit": "reps",
+    "cues": [
+      "Hold bell by horns, upside down",
+      "Circle close around the head",
+      "Ribs down, glutes tight"
+    ],
+    "faults": [
+      "Arching the lower back",
+      "Bell drifting far from head"
+    ],
+    "swapIds": [
+      "kb-arm-bar"
+    ],
+    "media": {
+      "primary": "none",
+      "approx": false
+    }
+  },
+  {
+    "id": "kb-windmill",
+    "name": "Kettlebell windmill",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 10,
+    "unit": "reps",
+    "cues": [
+      "Lock arm, eyes on the bell",
+      "Push hip out, hinge sideways",
+      "Slide free hand down the leg"
+    ],
+    "faults": [
+      "Bending the locked arm",
+      "Twisting instead of hinging"
+    ],
+    "swapIds": [
+      "kb-arm-bar"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/9Tkqa9O.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "kb-clean",
+    "name": "Single-arm kettlebell clean",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 15,
+    "unit": "reps",
+    "cues": [
+      "Hike, then snap hips",
+      "Keep the bell close; zip up",
+      "Soft landing in the rack"
+    ],
+    "faults": [
+      "Bell banging the forearm",
+      "Curling the bell with the arm"
+    ],
+    "swapIds": [
+      "kb-deadlift"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/LHWF7us.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "kb-press",
+    "name": "Single-arm kettlebell press",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 15,
+    "unit": "reps",
+    "cues": [
+      "Start from a tight rack",
+      "Squeeze glutes; brace the abs",
+      "Press up; bicep near ear"
+    ],
+    "faults": [
+      "Leaning back to finish the press",
+      "Wrist bending back"
+    ],
+    "swapIds": [
+      "db-press-standing"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/kuXhl0o.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "kb-rack-lunge",
+    "name": "Rack reverse lunge",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 15,
+    "unit": "reps",
+    "cues": [
+      "Bell racked, elbow tucked",
+      "Step back; knee kisses floor",
+      "Drive through front heel"
+    ],
+    "faults": [
+      "Front knee caving inward",
+      "Torso leaning toward the bell"
+    ],
+    "swapIds": [
+      "db-split-squat"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/SSsBDwB.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "kb-row",
+    "name": "Single-arm kettlebell row (bench supported)",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 40,
+    "unit": "reps",
+    "cues": [
+      "Hand on bench, back flat",
+      "Pull elbow toward the hip",
+      "Pause; lower under control"
+    ],
+    "faults": [
+      "Twisting the torso to lift",
+      "Shrugging the shoulder"
+    ],
+    "swapIds": [
+      "db-row"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/g9AsZ8P.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "kb-sl-rdl",
+    "name": "Single-leg Romanian deadlift (KB)",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 15,
+    "unit": "reps",
+    "cues": [
+      "Soft knee, hinge at the hip",
+      "Back leg reaches long behind",
+      "Hips square to the floor"
+    ],
+    "faults": [
+      "Opening the hip toward ceiling",
+      "Rounding the back to reach"
+    ],
+    "swapIds": [
+      "kb-deadlift"
+    ],
+    "media": {
+      "primary": "wger",
+      "imageUrl": "https://wger.de/media/exercise-images/1641/68d9488d-2596-420f-be0f-52aa70732c83.webp",
+      "credit": "wger.de (CC BY-SA 4.0)",
+      "approx": false
+    }
+  },
+  {
+    "id": "kb-suitcase-carry",
+    "name": "Suitcase carry",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 40,
+    "unit": "meters",
+    "cues": [
+      "Stand tall; don't lean",
+      "Crush the handle",
+      "Short, steady steps"
+    ],
+    "faults": [
+      "Leaning away from the bell",
+      "Shoulder dropping toward the bell"
+    ],
+    "swapIds": [
+      "kb-suitcase-march",
+      "farmer-carry"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/qPEzJjA.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "kb-suitcase-march",
+    "name": "Suitcase march in place",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 40,
+    "unit": "seconds",
+    "cues": [
+      "Stand tall, bell at side",
+      "Knee to hip height, slowly",
+      "Keep shoulders level"
+    ],
+    "faults": [
+      "Leaning toward the bell",
+      "Rushing the march"
+    ],
+    "swapIds": [
+      "kb-suitcase-carry"
+    ],
+    "media": {
+      "primary": "none",
+      "approx": false
+    }
+  },
+  {
+    "id": "kb-rack-carry",
+    "name": "Rack carry (single side)",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 15,
+    "unit": "meters",
+    "cues": [
+      "Bell racked, wrist straight",
+      "Ribs down, stand tall",
+      "Walk slow and steady"
+    ],
+    "faults": [
+      "Leaning back or sideways",
+      "Elbow flaring away from body"
+    ],
+    "swapIds": [
+      "kb-suitcase-carry"
+    ],
+    "media": {
+      "primary": "none",
+      "approx": false
+    }
+  },
+  {
+    "id": "farmer-carry",
+    "name": "Farmer carry (KB + DB)",
+    "equipment": "mixed",
+    "defaultLoadLb": 40,
+    "unit": "meters",
+    "cues": [
+      "Grip hard, shoulders packed",
+      "Tall posture, eyes ahead",
+      "Short, quick steps"
+    ],
+    "faults": [
+      "Shrugging the shoulders up",
+      "Shuffling with a slouched posture"
+    ],
+    "swapIds": [
+      "kb-suitcase-carry"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/qPEzJjA.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "kb-bottoms-up-carry",
+    "name": "Bottoms-up carry",
+    "equipment": "kettlebell",
+    "defaultLoadLb": 10,
+    "unit": "meters",
+    "cues": [
+      "Crush grip, bell upside down",
+      "Wrist straight, forearm vertical",
+      "Walk slow; stay braced"
+    ],
+    "faults": [
+      "Loose grip lets bell tip",
+      "Elbow drifting out wide"
+    ],
+    "swapIds": [
+      "kb-rack-carry"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/4KJEpzb.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "db-bench-press",
+    "name": "Dumbbell bench press",
+    "equipment": "dumbbell",
+    "unit": "reps",
+    "cues": [
+      "Feet planted, shoulder blades pinched",
+      "Lower to chest, elbows ~45°",
+      "Press up and slightly together"
+    ],
+    "faults": [
+      "Elbows flared straight out",
+      "Bouncing the bells at the bottom"
+    ],
+    "swapIds": [
+      "push-up",
+      "db-floor-press"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/SpYC0Kp.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "db-floor-press",
+    "name": "Floor press (DB or KB)",
+    "equipment": "mixed",
+    "unit": "reps",
+    "cues": [
+      "Lie down, knees bent",
+      "Lower until upper arms touch floor",
+      "Pause, then press up"
+    ],
+    "faults": [
+      "Slamming elbows into the floor",
+      "Wrists bending back"
+    ],
+    "swapIds": [
+      "db-bench-press"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/rg59QCH.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "push-up",
+    "name": "Push-up",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "cues": [
+      "Body in one straight line",
+      "Elbows back at ~45°",
+      "Chest to fist height, push away"
+    ],
+    "faults": [
+      "Hips sagging toward the floor",
+      "Head poking forward"
+    ],
+    "swapIds": [
+      "db-bench-press"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/I4hDWkc.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "db-row",
+    "name": "One-arm dumbbell row",
+    "equipment": "dumbbell",
+    "unit": "reps",
+    "cues": [
+      "Brace on bench, back flat",
+      "Pull elbow to the hip",
+      "Lower slowly to full stretch"
+    ],
+    "faults": [
+      "Jerking the weight up",
+      "Rotating the torso open"
+    ],
+    "swapIds": [
+      "kb-row"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/g9AsZ8P.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "db-press-standing",
+    "name": "Standing DB overhead press",
+    "equipment": "dumbbell",
+    "unit": "reps",
+    "cues": [
+      "Glutes tight, ribs down",
+      "Press straight up overhead",
+      "Lower under control to shoulders"
+    ],
+    "faults": [
+      "Arching the lower back",
+      "Pressing forward, not up"
+    ],
+    "swapIds": [
+      "kb-press"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/A6wtbuL.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "db-split-squat",
+    "name": "Rear-foot-elevated split squat (bench)",
+    "equipment": "mixed",
+    "unit": "reps",
+    "cues": [
+      "Rear laces on bench",
+      "Drop straight down, torso tall",
+      "Drive through the front foot"
+    ],
+    "faults": [
+      "Front foot too close to bench",
+      "Front knee caving inward"
+    ],
+    "swapIds": [
+      "kb-rack-lunge"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/qx4fgX7.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "step-up",
+    "name": "Bench step-up",
+    "equipment": "bench",
+    "defaultLoadLb": 15,
+    "unit": "reps",
+    "cues": [
+      "Whole foot on the bench",
+      "Drive through the top leg",
+      "Step down slowly"
+    ],
+    "faults": [
+      "Pushing off the bottom foot",
+      "Knee caving inward"
+    ],
+    "swapIds": [
+      "kb-rack-lunge"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/aXtJhlg.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "glute-bridge",
+    "name": "Glute bridge (optionally KB on hips)",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "cues": [
+      "Feet flat, knees bent",
+      "Drive hips up; squeeze glutes",
+      "Ribs down; no back arch"
+    ],
+    "faults": [
+      "Arching the lower back at top",
+      "Pushing through the toes"
+    ],
+    "swapIds": [
+      "kb-deadlift"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/u0cNiij.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "mcgill-curl-up",
+    "name": "McGill curl-up",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "cues": [
+      "Hands under low back; one knee bent",
+      "Lift head and shoulders slightly",
+      "Hold; breathe; keep neck still"
+    ],
+    "faults": [
+      "Tucking the chin to chest",
+      "Flattening the low back to floor"
+    ],
+    "swapIds": [
+      "dead-bug"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/g2oKspu.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "side-bridge",
+    "name": "Side bridge (knees or feet)",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "cues": [
+      "Elbow under shoulder",
+      "Hips up, body in a line",
+      "Hold, breathe, don't sag"
+    ],
+    "faults": [
+      "Hips sagging or piking",
+      "Rolling forward or back"
+    ],
+    "swapIds": [
+      "kb-suitcase-march"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/RKjH6Lt.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "bird-dog",
+    "name": "Bird dog",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "cues": [
+      "Reach opposite arm and leg long",
+      "Keep back flat, hips level",
+      "Make a fist; squeeze the glute"
+    ],
+    "faults": [
+      "Lifting the leg too high",
+      "Hips rotating open"
+    ],
+    "swapIds": [
+      "dead-bug"
+    ],
+    "media": {
+      "primary": "wger",
+      "imageUrl": "https://wger.de/media/exercise-images/1572/3d14e761-a73d-49da-8804-f3016a7573ff.png",
+      "credit": "wger.de (CC BY-SA 4.0)",
+      "approx": false
+    }
+  },
+  {
+    "id": "dead-bug",
+    "name": "Dead bug",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "cues": [
+      "Low back pressed to floor",
+      "Lower opposite arm and leg slowly",
+      "Exhale as you extend"
+    ],
+    "faults": [
+      "Low back arching off floor",
+      "Moving too fast"
+    ],
+    "swapIds": [
+      "bird-dog"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/iny3m5y.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "hip-9090",
+    "name": "90/90 hip switches",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "cues": [
+      "Sit tall, both knees at 90°",
+      "Rotate knees side to side slowly",
+      "Use hands for support if needed"
+    ],
+    "faults": [
+      "Slumping through the spine",
+      "Forcing knees to the floor"
+    ],
+    "swapIds": [
+      "deep-squat-hold"
+    ],
+    "media": {
+      "primary": "none",
+      "approx": false
+    }
+  },
+  {
+    "id": "couch-stretch",
+    "name": "Couch stretch",
+    "equipment": "bodyweight",
+    "unit": "seconds",
+    "cues": [
+      "Back shin up the wall or couch",
+      "Squeeze glute of the back leg",
+      "Ribs down, torso tall"
+    ],
+    "faults": [
+      "Arching the lower back",
+      "Letting the glute go soft"
+    ],
+    "swapIds": [
+      "half-kneel-hip-flexor"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/tFGKm99.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "half-kneel-hip-flexor",
+    "name": "Half-kneeling hip flexor stretch",
+    "equipment": "bodyweight",
+    "unit": "seconds",
+    "cues": [
+      "Tuck pelvis under",
+      "Squeeze back-leg glute",
+      "Shift forward gently; stay tall"
+    ],
+    "faults": [
+      "Arching the back to go deeper",
+      "Front knee caving in"
+    ],
+    "swapIds": [
+      "couch-stretch"
+    ],
+    "media": {
+      "primary": "wger",
+      "imageUrl": "https://wger.de/media/exercise-images/1867/767631e5-10d2-46b8-b03f-cc298f96963b.png",
+      "credit": "wger.de (CC BY-SA 4.0)",
+      "approx": false
+    }
+  },
+  {
+    "id": "worlds-greatest",
+    "name": "World's greatest stretch",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "cues": [
+      "Lunge deep, hand inside front foot",
+      "Rotate and reach to the ceiling",
+      "Follow your hand with your eyes"
+    ],
+    "faults": [
+      "Back knee collapsing",
+      "Rushing the rotation"
+    ],
+    "swapIds": [
+      "hip-9090"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/DFGXwZr.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "open-book",
+    "name": "Thoracic open book",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "cues": [
+      "Lie on side, knees stacked at 90°",
+      "Open top arm across, eyes follow",
+      "Exhale to rotate further"
+    ],
+    "faults": [
+      "Knees lifting apart",
+      "Forcing the arm to the floor"
+    ],
+    "swapIds": [
+      "kb-arm-bar"
+    ],
+    "media": {
+      "primary": "none",
+      "approx": false
+    }
+  },
+  {
+    "id": "cat-camel",
+    "name": "Cat-camel",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "cues": [
+      "Hands under shoulders, knees under hips",
+      "Slowly round, then gently arch",
+      "Move through comfortable range only"
+    ],
+    "faults": [
+      "Pushing to end range",
+      "Moving too fast"
+    ],
+    "swapIds": [
+      "bird-dog"
+    ],
+    "media": {
+      "primary": "none",
+      "approx": false
+    }
+  },
+  {
+    "id": "deep-squat-hold",
+    "name": "Deep squat hold",
+    "equipment": "bodyweight",
+    "unit": "seconds",
+    "cues": [
+      "Sit deep, heels down",
+      "Chest up, elbows inside knees",
+      "Breathe slow and relax"
+    ],
+    "faults": [
+      "Heels lifting off the floor",
+      "Rounded, slumped back"
+    ],
+    "swapIds": [
+      "kb-prying-squat"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/ZA8b5hc.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "ham-floss",
+    "name": "Hamstring floss / supine leg lowering",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "cues": [
+      "Lie on back, one leg up",
+      "Lower the leg slowly, back flat",
+      "Keep the bottom leg straight"
+    ],
+    "faults": [
+      "Low back arching off floor",
+      "Bending the moving knee"
+    ],
+    "swapIds": [
+      "worlds-greatest"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/sU5BrfP.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "interval-hill",
+    "name": "Uphill hike / incline walk interval",
+    "equipment": "cardio",
+    "unit": "seconds",
+    "cues": [
+      "Short steps, drive the arms",
+      "Hard but steady pace",
+      "Breathe deep; stay tall"
+    ],
+    "faults": [
+      "Starting too fast, fading late",
+      "Hunching over on the climb"
+    ],
+    "swapIds": [
+      "interval-bike",
+      "interval-bell-step"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/rjiM4L3.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "interval-bike",
+    "name": "Bike or rower interval",
+    "equipment": "cardio",
+    "unit": "seconds",
+    "cues": [
+      "Settle into a hard, steady pace",
+      "Push evenly; stay relaxed up top",
+      "Build effort over the 4 minutes"
+    ],
+    "faults": [
+      "Sprinting the first minute",
+      "Gripping and shrugging tensely"
+    ],
+    "swapIds": [
+      "interval-hill"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/H1PESYI.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": false
+    }
+  },
+  {
+    "id": "interval-bell-step",
+    "name": "Bell & step 4-min interval",
+    "equipment": "mixed",
+    "defaultLoadLb": 40,
+    "unit": "seconds",
+    "cues": [
+      "10 crisp swings, then step-ups",
+      "Keep moving; no long pauses",
+      "Grip fades? Step-ups only"
+    ],
+    "faults": [
+      "Sloppy swings when tired",
+      "Stomping or rushing step-ups"
+    ],
+    "swapIds": [
+      "interval-hill"
+    ],
+    "media": {
+      "primary": "exercisedb",
+      "gifUrl": "https://static.exercisedb.dev/media/UHJlbu3.gif",
+      "gifUrl2": "https://static.exercisedb.dev/media/aXtJhlg.gif",
+      "credit": "ExerciseDB by AscendAPI",
+      "approx": true
+    }
+  },
+  {
+    "id": "zone2-walk",
+    "name": "Zone 2 walk / hike / chores",
+    "equipment": "cardio",
+    "unit": "seconds",
+    "cues": [
+      "Easy pace; full sentences",
+      "Breathe mostly through the nose",
+      "Steady effort the whole time"
+    ],
+    "faults": [
+      "Going too hard to talk",
+      "Stopping and starting often"
+    ],
+    "swapIds": [
+      "interval-hill"
+    ],
+    "media": {
+      "primary": "none",
+      "approx": false
+    }
+  },
+  {
+    "id": "breathing-reset",
+    "name": "Slow breaths lying down",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "cues": [
+      "Lie on your back, eyes closed",
+      "Slow nasal inhale into belly",
+      "Long, slow exhale"
+    ],
+    "faults": [
+      "Breathing fast and shallow",
+      "Lifting the chest, not belly"
+    ],
+    "swapIds": [],
+    "media": {
+      "primary": "none",
+      "approx": false
+    }
+  }
+]

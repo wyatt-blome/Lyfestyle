@@ -1,0 +1,456 @@
+[
+  {
+    "id": "why-fast-16-8",
+    "appliesTo": [
+      "fasting:13:11",
+      "fasting:16:8"
+    ],
+    "title": "Why 16:8 is the default",
+    "body": "Skip breakfast and eat in 8 h. It's the easiest daily base.",
+    "refs": [
+      {
+        "episodeId": "fung-2024",
+        "t": "43:47"
+      },
+      {
+        "episodeId": "pelz-2024",
+        "t": "34:23"
+      },
+      {
+        "episodeId": "hyman-2024",
+        "t": "40:53"
+      },
+      {
+        "episodeId": "patrick-2025",
+        "t": "2:01:46"
+      }
+    ],
+    "unverified": "Guests' exact window numbers aren't in the show notes."
+  },
+  {
+    "id": "why-fast-18-6",
+    "appliesTo": [
+      "fasting:18:6",
+      "fasting:20:4"
+    ],
+    "title": "Why push to 18:6 some days",
+    "body": "A longer daily fast, used 2–4 days a week once 16:8 is easy.",
+    "refs": [
+      {
+        "episodeId": "pelz-2023",
+        "t": "19:00"
+      },
+      {
+        "episodeId": "patrick-2026",
+        "t": "25:41"
+      },
+      {
+        "episodeId": "attia-2025",
+        "t": "1:30:59"
+      }
+    ],
+    "unverified": "No show notes name 18:6 specifically."
+  },
+  {
+    "id": "why-fast-omad",
+    "appliesTo": [
+      "fasting:OMAD"
+    ],
+    "title": "OMAD (one meal a day)",
+    "body": "Optional, max 1–2×/week. Protein-forward meal to keep muscle.",
+    "refs": [
+      {
+        "episodeId": "fung-2024",
+        "t": "43:47"
+      },
+      {
+        "episodeId": "pelz-2023",
+        "t": "1:56:49"
+      },
+      {
+        "episodeId": "lyon-2024",
+        "t": "52:00"
+      }
+    ],
+    "unverified": "No verified show notes recommend OMAD specifically. This is our inference."
+  },
+  {
+    "id": "why-fast-24",
+    "appliesTo": [
+      "fasting:24h"
+    ],
+    "title": "Why an occasional 24 h fast",
+    "body": "Every 1–4 weeks, on an M or Z day.",
+    "refs": [
+      {
+        "episodeId": "pelz-2023",
+        "t": "21:18"
+      },
+      {
+        "episodeId": "patrick-2025",
+        "t": "1:59:51"
+      },
+      {
+        "episodeId": "fung-2024",
+        "t": "1:02:18"
+      }
+    ],
+    "unverified": "Autophagy hours aren't in the notes and the human evidence is uncertain, so never show 'autophagy at X h'."
+  },
+  {
+    "id": "why-fast-extended",
+    "appliesTo": [
+      "fasting:36h",
+      "fasting:48h",
+      "fasting:custom>36h"
+    ],
+    "title": "Extended fasts (36–48 h+): proceed carefully",
+    "body": "Doctor first. Electrolytes, rest, mobility/walk only, break it gently.",
+    "refs": [
+      {
+        "episodeId": "goldhamer-2025",
+        "t": "59:13"
+      },
+      {
+        "episodeId": "goldhamer-2025",
+        "t": "40:41"
+      },
+      {
+        "episodeId": "pelz-2023",
+        "t": "43:41"
+      },
+      {
+        "episodeId": "attia-2025",
+        "t": "1:37:11"
+      }
+    ],
+    "unverified": "Goldhamer's water fasts are medically supervised, not DIY."
+  },
+  {
+    "id": "why-fast-drinks",
+    "appliesTo": [
+      "fasting:during"
+    ],
+    "title": "What you can drink while fasting",
+    "body": "Water, black coffee, plain tea and electrolytes are fast-safe. Calories prompt 'end fast?'.",
+    "refs": [
+      {
+        "episodeId": "pelz-2024",
+        "t": "35:50"
+      },
+      {
+        "episodeId": "pelz-2023",
+        "t": "47:53"
+      }
+    ],
+    "unverified": "Per-guest lists aren't in the notes. This is a conservative standard."
+  },
+  {
+    "id": "why-fasted-training",
+    "appliesTo": [
+      "training:during-fast"
+    ],
+    "title": "Training while fasted",
+    "body": "Mobility, walks and Quick 20s are fine on daily fasts. Do the 4×4 late in the fast or in the window. Nothing hard past 24 h.",
+    "refs": [
+      {
+        "episodeId": "patrick-2026",
+        "t": "31:04"
+      },
+      {
+        "episodeId": "galpin-2024",
+        "t": "1:34:57"
+      },
+      {
+        "episodeId": "patrick-2025",
+        "t": "2:05:33"
+      },
+      {
+        "episodeId": "goldhamer-2025"
+      }
+    ],
+    "unverified": "Patrick's verdict isn't in the notes."
+  },
+  {
+    "id": "why-4x4",
+    "appliesTo": [
+      "session:C"
+    ],
+    "title": "Why the Norwegian 4×4 every Wednesday",
+    "body": "VO2 max is a top longevity marker. The 4×4 is the best-studied way to raise it without long runs.",
+    "evidence": [
+      {
+        "label": "NTNU CERG: 4×4 advice",
+        "url": "https://www.ntnu.edu/cerg/advice"
+      },
+      {
+        "label": "PubMed 17414804",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/17414804/"
+      },
+      {
+        "label": "PubMed 33028588",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33028588/"
+      }
+    ],
+    "refs": [
+      {
+        "episodeId": "patrick-2025",
+        "t": "30:01"
+      },
+      {
+        "episodeId": "attia-2025",
+        "t": "53:48"
+      },
+      {
+        "episodeId": "galpin-2024",
+        "t": "1:52:02"
+      },
+      {
+        "episodeId": "wright-2024",
+        "t": "1:59:50"
+      }
+    ],
+    "unverified": "Timings and HR targets come from NTNU, not DOAC."
+  },
+  {
+    "id": "why-zone2",
+    "appliesTo": [
+      "session:Z"
+    ],
+    "title": "Why the easy Saturday walk (Zone 2)",
+    "body": "Easy conversational pace builds the aerobic base and recovery. A ranch walk counts.",
+    "refs": [
+      {
+        "episodeId": "attia-2025",
+        "t": "1:06:21"
+      },
+      {
+        "episodeId": "huberman-2026",
+        "t": "2:04:22"
+      },
+      {
+        "episodeId": "lieberman-2023"
+      }
+    ],
+    "unverified": "No guest dose verified. 30–50 min is ours."
+  },
+  {
+    "id": "why-strength",
+    "appliesTo": [
+      "session:A",
+      "session:B"
+    ],
+    "title": "Why two strength days (and not bulking)",
+    "body": "Muscle and strength protect you as you age. RPE 6–8 with no grinding means no bulk.",
+    "refs": [
+      {
+        "episodeId": "attia-2025",
+        "t": "51:54"
+      },
+      {
+        "episodeId": "lyon-2024",
+        "t": "47:15"
+      },
+      {
+        "episodeId": "wright-2025",
+        "t": "50:58"
+      },
+      {
+        "episodeId": "galpin-2024",
+        "t": "2:12:12"
+      },
+      {
+        "episodeId": "galpin-2026",
+        "t": "1:17:52"
+      }
+    ],
+    "unverified": "No guest prescribed this program. It's StrongFirst-style and fits their principles."
+  },
+  {
+    "id": "why-carries-grip",
+    "appliesTo": [
+      "exercise:kb-suitcase-carry",
+      "exercise:farmer-carry",
+      "exercise:kb-swing-1h"
+    ],
+    "title": "Why carries and grip",
+    "body": "Grip is a healthy-aging marker. Carries train grip, core and posture together.",
+    "refs": [
+      {
+        "episodeId": "attia-2025",
+        "t": "40:32"
+      },
+      {
+        "episodeId": "galpin-2024"
+      },
+      {
+        "episodeId": "attia-moment-2025"
+      }
+    ],
+    "unverified": "Grip and longevity is an association. Using carries is our choice."
+  },
+  {
+    "id": "why-power-balance",
+    "appliesTo": [
+      "exercise:kb-swing-2h",
+      "exercise:step-up",
+      "exercise:kb-sl-rdl",
+      "exercise:kb-tgu"
+    ],
+    "title": "Why swings, single-leg work and get-ups",
+    "body": "Power and balance prevent falls. Swings build power; single-leg work and get-ups build balance.",
+    "refs": [
+      {
+        "episodeId": "attia-2025",
+        "t": "45:21"
+      },
+      {
+        "episodeId": "attia-2025",
+        "t": "46:36"
+      },
+      {
+        "episodeId": "galpin-2024",
+        "t": "1:39:00"
+      },
+      {
+        "episodeId": "galpin-2026",
+        "t": "1:34:30"
+      }
+    ]
+  },
+  {
+    "id": "why-mobility",
+    "appliesTo": [
+      "session:M",
+      "session:DAILY10"
+    ],
+    "title": "Why the Tuesday mobility day and the Daily 10",
+    "body": "Mobility is goal #2. Short daily doses beat rare long sessions.",
+    "refs": [
+      {
+        "episodeId": "attia-2025",
+        "t": "47:35"
+      },
+      {
+        "episodeId": "wright-2024",
+        "t": "47:57"
+      },
+      {
+        "episodeId": "wright-2024",
+        "t": "49:33"
+      },
+      {
+        "episodeId": "attia-moment-2025"
+      }
+    ],
+    "unverified": "The drills are standard mobility work, not prescribed by the guests."
+  },
+  {
+    "id": "why-core",
+    "appliesTo": [
+      "exercise:mcgill-curl-up",
+      "exercise:side-bridge",
+      "exercise:bird-dog"
+    ],
+    "title": "Why the McGill Big 3 for the core",
+    "body": "Rebuild the core for spine stability and endurance, not crunches.",
+    "evidence": [
+      {
+        "label": "ACE: 'McGill Big Three' article",
+        "url": "https://www.acefitness.org/"
+      }
+    ],
+    "refs": [
+      {
+        "episodeId": "attia-2023",
+        "t": "1:14:03"
+      },
+      {
+        "episodeId": "wright-2024",
+        "t": "44:27"
+      },
+      {
+        "episodeId": "wright-2025",
+        "t": "1:30:09"
+      }
+    ],
+    "unverified": "McGill has never been a DOAC guest. DOAC only supports stability and back-pain prevention in general."
+  },
+  {
+    "id": "why-quick20",
+    "appliesTo": [
+      "session:Q1",
+      "session:Q2",
+      "session:Q3",
+      "session:Q4",
+      "session:Q5",
+      "session:Q6",
+      "session:Q7",
+      "session:Q8",
+      "session:Q9"
+    ],
+    "title": "Why short, dense kettlebell sessions",
+    "body": "20 focused minutes done often beat a long slog you skip.",
+    "refs": [
+      {
+        "episodeId": "wright-2024"
+      },
+      {
+        "episodeId": "patrick-2025",
+        "t": "25:32"
+      },
+      {
+        "episodeId": "galpin-2026",
+        "t": "1:37:03"
+      }
+    ],
+    "unverified": "No guest prescribed these formats."
+  },
+  {
+    "id": "why-protein",
+    "appliesTo": [
+      "food:break-fast",
+      "fasting:OMAD"
+    ],
+    "title": "Protein when you break the fast (experts disagree)",
+    "body": "First meal protein-forward to keep muscle. How much is disputed.",
+    "refs": [
+      {
+        "episodeId": "lyon-2024",
+        "t": "1:21:30"
+      },
+      {
+        "episodeId": "patrick-2025",
+        "t": "2:05:33"
+      },
+      {
+        "episodeId": "pelz-2024",
+        "t": "1:20:55"
+      },
+      {
+        "episodeId": "spector-2023b"
+      }
+    ],
+    "disagreement": true
+  },
+  {
+    "id": "why-deload-sleep",
+    "appliesTo": [
+      "program:deload",
+      "readiness"
+    ],
+    "title": "Why deloads and the readiness check",
+    "body": "Recovery and sleep decide whether training pays off. Back off when they're low.",
+    "refs": [
+      {
+        "episodeId": "galpin-2026"
+      },
+      {
+        "episodeId": "patrick-2026"
+      },
+      {
+        "episodeId": "huberman-2026"
+      }
+    ]
+  }
+]
