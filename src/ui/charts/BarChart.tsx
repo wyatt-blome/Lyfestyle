@@ -48,8 +48,8 @@ export function BarChart({
   const summary = has
     ? `${bars.length} bars from ${bars[0].label} to ${bars[bars.length - 1].label}. ${nonZero.length} with a value, average ${fmt(avg)} ${unit}, highest ${fmt(Math.max(...bars.map((b) => b.value)))} ${unit}.`
     : empty;
-  // Label every bar when few, else about six evenly spaced.
-  const every = Math.max(1, Math.ceil(bars.length / 6));
+  // As many labels as fit: about 60 px each at 14 px (a "Sep 28" label is ~44 px wide).
+  const every = Math.max(1, Math.ceil(bars.length / Math.max(1, Math.floor(innerW / 60))));
 
   const pick = (clientX: number, rect: DOMRect) => {
     const i = Math.floor((clientX - rect.left - PAD.left) / slot);

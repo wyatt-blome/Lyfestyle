@@ -7,7 +7,7 @@ import { buzz, finish, go, speak, tick, unlockAudio, useWakeLock } from "@/clien
 import { useSettings } from "@/client/settings";
 import { useNow } from "@/client/useNow";
 import { mutateRun, type ActiveRun } from "@/client/workouts";
-import { advance, bump, cuesBetween, endRun, isPaused, pause, position, resume, type Run } from "@/lib/timer";
+import { advance, bump, cuesBetween, endRun, isPaused, pause, position, reminderActive, reminderDue, resume, type Run } from "@/lib/timer";
 import { describeItem, zones } from "@/lib/session";
 import { formatClock } from "@/lib/time";
 import type { SessionItem } from "@/lib/types";
@@ -70,6 +70,13 @@ export function Runner({ active, title, onDone }: { active: ActiveRun; title: st
         if (settings.notifications.sound) finish();
         if (settings.notifications.vibrate) buzz([300, 150, 300]);
       }
+    }
+    // Z: the optional carry every 10 minutes during the walk (skipped after a long gap).
+    const due = gap < 5000 ? reminderDue(run, from, now) : null;
+    if (due) {
+      if (settings.notifications.sound) go();
+      if (settings.notifications.vibrate) buzz([200, 100, 200]);
+      if (settings.notifications.voice) speak(`Optional: one minute ${moveName(due.item)}`);
     }
   }, [now, run, settings]);
 
@@ -149,6 +156,11 @@ export function Runner({ active, title, onDone }: { active: ActiveRun; title: st
               )
             )}
 
+            {p.segment?.reminder && reminderActive(p) && (
+              <div className="rounded-2xl border border-accent bg-accent/15 p-3 text-center text-lg" role="status">
+                Optional now: 1 min {moveName(p.segment.reminder)} ({p.segment.reminder.loadLb} lb), then keep walking
+              </div>
+            )}
             {ex && <LoopedDemo exercise={ex} size="lg" />}
 
             {hrRound > 0 && (seg.kind === "rest" || seg.kind === "cooldown") && (

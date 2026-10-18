@@ -135,3 +135,15 @@ test("hard sessions can't be reached by URL during a fast over 24 h", async ({ p
   await expect(page.getByText("the 40 lb carries are left out today")).toBeVisible();
   await expect(page.getByText("Suitcase march in place")).toHaveCount(0);
 });
+
+test("Z prompts the optional carry every 10 minutes of the walk", async ({ page }) => {
+  await page.clock.install({ time: MONDAY });
+  await onboard(page);
+  await page.goto("/train/follow?id=Z&v=full");
+  await page.getByRole("button", { name: /^Start/ }).first().click();
+  // Follow-along has no prep: the walk starts at once.
+  await page.clock.runFor(600_000 + 5_000);
+  await expect(page.getByRole("status").filter({ hasText: /Optional now: 1 min/ })).toBeVisible();
+  await page.clock.runFor(62_000);
+  await expect(page.getByText(/Optional now: 1 min/)).toHaveCount(0);
+});

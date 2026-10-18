@@ -157,6 +157,26 @@ describe("sync pull", () => {
     expect(calls[1]).toMatch(/^GET .*synced_at=gt/);
   });
 
+  it("a sync in flight writes nothing after Erase all data", async () => {
+    server([]);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const rows = [
+      { tbl: "fasts", id: "f1", data: { id: "f1", startAt: "2026-10-16T00:00:00Z", status: "active", updatedAt: "2026-10-16T09:00:00Z" }, updated_at: "", synced_at: "2026-10-16T10:00:00Z" },
+    ];
+    vi.stubGlobal("fetch", async () => {
+      await gate;
+      return new Response(JSON.stringify(rows), { status: 200 });
+    });
+    const running = sync.syncNow();
+    const wiping = wipeAll();
+    release();
+    await Promise.all([running, wiping]);
+    expect(await db().fasts.count()).toBe(0);
+    expect(store.has("fm.sync.last")).toBe(false);
+    expect(store.has("fm.sync.pulledAt")).toBe(false);
+  });
+
   it("counts a row that can't be saved and carries on", async () => {
     server([
       { tbl: "fasts", id: "bad", data: { updatedAt: "2026-10-16T09:00:00Z" } as never, updated_at: "", synced_at: "2026-10-16T10:00:00Z" },
@@ -167,7 +187,11 @@ describe("sync pull", () => {
     const last = JSON.parse(store.get("fm.sync.last")!);
     expect(last.ok).toBe(false);
     expect(last.message).toMatch(/received 1, 1 couldn't be saved/);
-    // The cursor stays put so the failed row is retried next run.
-    expect(store.get("fm.sync.pulledAt") ?? null).toBeNull();
+    // The cursor stops just before the failed row, so the next run retries it...
+    expect(JSON.parse(store.get("fm.sync.pulledAt")!)).toBe("2026-10-16T09:59:55.000Z");
+    // ...for three runs in all, then moves past it instead of re-reading forever.
+    await sync.syncNow();
+    await sync.syncNow();
+    expect(JSON.parse(store.get("fm.sync.pulledAt")!)).toBe("2026-10-16T09:59:56.000Z");
   });
 });

@@ -218,3 +218,12 @@ export function weeklySummary(
   const monday = mondayOf(dateKey(now, tz));
   return { thisWeek: weekStats(monday, data, tz), lastWeek: weekStats(addDays(monday, -7), data, tz) };
 }
+
+/** One line for Home: "3/4 fasts hit · 2 sessions · −1.2 lb". Empty parts are left out. */
+export function weekLine(w: WeekStats): string {
+  const parts: string[] = [];
+  if (w.fastsEnded) parts.push(`${w.fastsCompleted}/${w.fastsEnded} fasts hit`);
+  parts.push(`${w.sessions} ${w.sessions === 1 ? "session" : "sessions"}`);
+  if (w.weightChange !== undefined) parts.push(`${w.weightChange > 0 ? "+" : w.weightChange < 0 ? "−" : "±"}${Math.abs(w.weightChange)} lb`);
+  return parts.join(" · ");
+}

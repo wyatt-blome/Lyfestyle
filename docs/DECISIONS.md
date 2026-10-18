@@ -234,3 +234,25 @@ Every standalone link is now at least 48 px tall: why-card chapter links, episod
 - **Cues:** a move without a demo lists its cues once.
 - **4×4 setup:** Start sits above the heart-rate card.
 - **Ended sessions:** an ended session asks to be saved or discarded before another can start.
+
+# Upgrades after v1
+
+## D33. Weekly summary on Home
+A "This week" card under Today shows one line: fasts that hit target out of those ended, sessions done, and the weight change if there are weigh-ins. Tapping it opens Progress. It reuses the Progress week numbers, so the two never disagree.
+
+## D34. Z's optional carry is a prompt, not a step
+The Z suitcase carry ("optional: 1 min every 10 min") is attached to the walk as a reminder rather than inserted as its own step. At each 10-minute mark the runner beeps, buzzes and shows "Optional now: 1 min suitcase carry (40 lb), then keep walking" for a minute. The walk timer never stops, so there is nothing to tap mid-walk; skipping it takes no action. No prompt fires at minute 0, or when less than a minute of the walk is left.
+
+## D35. Light theme
+Settings › Look offers Dark (the default), Light and Phone (follows the phone's setting). Light colours keep 4.5:1 for text, including on the 15% tinted notices, and 3:1 for borders; the accent switches to white text. A tiny script in `<head>` applies the last choice before first paint, so a light-theme phone doesn't flash dark. The choice is part of settings, so it syncs.
+
+# Review round 3 (final review)
+
+## D36. Sync and save follow-ups
+- **Two new phones:** settings still at the onboarding placeholder timestamp now adopt an equal remote copy. The first phone to sync seeds the server, and later phones take its age, start date and gear instead of each keeping its own and overwriting the other's on the next edit.
+- **Erase and import during a sync:** a sync in flight checks the generation before every row and push batch and stops, and writes no status once it's stale. Erase signs out, waits for that sync to stop, then clears. Import does the same before restoring. A token refresh that finishes after a sign-out doesn't sign back in.
+- **Failed rows:** the pull cursor stops just before the earliest failed row instead of not moving at all, and a row that fails three runs in a row is given up on. One bad row no longer re-downloads everything on every sync forever.
+- **Saving a workout:** the log and its progression updates are one transaction. A failed save leaves nothing behind, so a retry applies progression properly.
+- **Contrast:** the dark-theme line colour is #6b7a76 (3.5:1 on surface-2, 3.9:1 on cards). #4a5754 from D32 measured only 2.1–2.6:1.
+- **Chart labels:** bar-chart label spacing comes from the chart's width (about 60 px per label), so dates don't overlap at 390 px.
+- **Screen readers:** the day timeline reads "Not tracked" time as "Not tracked", not "Eating".

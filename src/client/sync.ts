@@ -38,6 +38,10 @@ const S_PULLED = "fm.sync.pulledAt";
 const S_LAST = "fm.sync.last";
 const S_PENDING = "fm.sync.pending";
 const S_EMAIL = "fm.sync.email";
+const S_FAILS = "fm.sync.fails";
+
+/** Runs a pulled row may fail to save before it stops holding the pull cursor back. */
+const MAX_ROW_TRIES = 3;
 
 function read<T>(k: string): T | null {
   try {
@@ -129,8 +133,23 @@ export function takePendingSignIn(): boolean {
  */
 let generation = 0;
 
-function writeCursor(key: string, value: string | null, gen: number): void {
+function writeCursor(key: string, value: unknown, gen: number): void {
   if (gen === generation) write(key, value);
+}
+
+/** Thrown inside a run once the generation moved on (wipe, import, sign-out, new account). */
+class StaleRun extends Error {}
+
+/** The refresh token was refused, so this device was signed out; the reason is still shown. */
+class SignedOut extends Error {}
+
+function checkGen(gen: number): void {
+  if (gen !== generation) throw new StaleRun();
+}
+
+/** Wait for a sync already in flight to stop (after bumping the generation, it stops early). */
+export async function settleSync(): Promise<void> {
+  await running?.catch(() => undefined);
 }
 
 /** Forget where push and pull got to, so the next run sends everything and re-reads everything. */
@@ -138,6 +157,7 @@ export function resetSyncCursors(): void {
   generation++;
   write(S_PUSHED, null);
   write(S_PULLED, null);
+  write(S_FAILS, null);
 }
 
 export function saveSession(s: AuthSession): void {
@@ -159,6 +179,7 @@ export function signOut(): void {
   write(S_SESSION, null);
   write(S_PUSHED, null);
   write(S_PULLED, null);
+  write(S_FAILS, null);
   write(S_LAST, null);
 }
 
@@ -178,13 +199,20 @@ async function validSession(): Promise<AuthSession | null> {
   const s = read<AuthSession>(S_SESSION);
   if (!s) return null;
   if (s.expiresAt - Date.now() > 60_000) return s;
+  const gen = generation;
   const res = await api("/auth/v1/token?grant_type=refresh_token", {
     method: "POST",
     body: JSON.stringify({ refresh_token: s.refreshToken }),
   });
+  // Signed out (or erased) while refreshing: don't sign back in.
+  if (gen !== generation) return null;
   if (!res.ok) {
-    if (res.status === 400 || res.status === 401) signOut();
-    throw new Error(await errorText(res));
+    const msg = await errorText(res);
+    if (res.status === 400 || res.status === 401) {
+      signOut();
+      throw new SignedOut(msg);
+    }
+    throw new Error(msg);
   }
   const j = (await res.json()) as { access_token: string; refresh_token: string; expires_in: number; user?: { email?: string } };
   const next: AuthSession = {
@@ -222,14 +250,14 @@ export function syncNow(): Promise<void> {
 }
 
 async function runSync(): Promise<void> {
+  const gen = generation;
   const s = await validSession().catch((e: Error) => {
-    write(S_LAST, { at: new Date().toISOString(), ok: false, message: e.message });
+    if (gen === generation || e instanceof SignedOut) write(S_LAST, { at: new Date().toISOString(), ok: false, message: e.message });
     return null;
   });
-  if (!s) return;
+  if (!s || gen !== generation) return;
   busy = true;
   emit();
-  const gen = generation;
   try {
     const d = db();
     const pushedAt = read<string>(S_PUSHED);
@@ -245,8 +273,9 @@ async function runSync(): Promise<void> {
       sent = await push(d, s.accessToken, null, gen);
     }
     const msg = `Sent ${sent}, received ${pull.received}${pull.failed ? `, ${pull.failed} couldn't be saved on this device` : ""}`;
-    write(S_LAST, { at: new Date().toISOString(), ok: pull.failed === 0, message: msg });
+    if (gen === generation) write(S_LAST, { at: new Date().toISOString(), ok: pull.failed === 0, message: msg });
   } catch (e) {
+    if (e instanceof StaleRun || gen !== generation) return;
     const msg = e instanceof TypeError ? "No connection to Supabase." : (e as Error).message;
     write(S_LAST, { at: new Date().toISOString(), ok: false, message: msg });
   } finally {
@@ -264,6 +293,7 @@ async function push(d: FastMoveDB, token: string, since: string | null, gen: num
     for (const r of changedSince(rows, since)) out.push(toRemote(t, r));
   }
   for (let i = 0; i < out.length; i += 500) {
+    checkGen(gen);
     const res = await api(
       "/rest/v1/records?on_conflict=user_id,tbl,id",
       { method: "POST", body: JSON.stringify(out.slice(i, i + 500)), headers: { Prefer: "resolution=merge-duplicates,return=minimal" } },
@@ -278,12 +308,16 @@ async function push(d: FastMoveDB, token: string, since: string | null, gen: num
 /**
  * Pull everything the server accepted since the saved cursor; newer copies win. Pages continue
  * after the last row read (ties broken by tbl, id); the 5 s overlap only goes into the cursor
- * saved at the end. A row that can't be saved is counted and skipped, never aborting the run, and is retried next run.
+ * saved at the end. A row that can't be saved is counted and skipped, never aborting the run; the
+ * cursor stops just before it so the next run retries it, up to MAX_ROW_TRIES runs.
  */
 async function pullAll(d: FastMoveDB, token: string, gen: number): Promise<{ received: number; failed: number }> {
   const start = read<string>(S_PULLED);
+  const tries = read<Record<string, number>>(S_FAILS) ?? {};
+  const stillFailing: Record<string, number> = {};
   let page: PageCursor | null = null;
   let latest: string | null = null;
+  let holdAt: string | null = null;
   let received = 0;
   let failed = 0;
   for (;;) {
@@ -293,19 +327,23 @@ async function pullAll(d: FastMoveDB, token: string, gen: number): Promise<{ rec
     for (const r of rows) {
       if (r.synced_at && (!latest || r.synced_at > latest)) latest = r.synced_at;
       if (!(SYNC_TABLES as readonly string[]).includes(r.tbl)) continue;
+      checkGen(gen);
       try {
         if (await applyRow(d, r.tbl as SyncTable, r.data)) received++;
       } catch {
         failed++;
+        const k = `${r.tbl}/${r.id}`;
+        stillFailing[k] = (tries[k] ?? 0) + 1;
+        if (stillFailing[k] < MAX_ROW_TRIES && r.synced_at && (!holdAt || r.synced_at < holdAt)) holdAt = r.synced_at;
       }
     }
     const next = pageCursor(rows);
     if (rows.length < PULL_PAGE || !next) break;
     page = next;
   }
-  // If any row couldn't be saved here, keep the old cursor so the next run retries it (applying
-  // the others again is harmless: last write wins).
-  if (failed === 0) writeCursor(S_PULLED, nextCursor(start, latest ? [{ synced_at: latest }] : []), gen);
+  // Rows after a failed one are read again next run (harmless: last write wins).
+  writeCursor(S_PULLED, nextCursor(start, holdAt ? [{ synced_at: holdAt }] : latest ? [{ synced_at: latest }] : []), gen);
+  writeCursor(S_FAILS, Object.keys(stillFailing).length ? stillFailing : null, gen);
   return { received, failed };
 }
 

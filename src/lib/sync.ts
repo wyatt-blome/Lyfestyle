@@ -42,10 +42,20 @@ export function changedSince<T extends Syncable>(rows: T[], sinceIso: string | n
   return rows.filter((r) => r.updatedAt > sinceIso);
 }
 
-/** Last write wins: apply the remote copy when there's no local one or it is strictly newer. */
+/** updatedAt of settings nobody has edited yet (see defaultSettings). */
+export const SETTINGS_EPOCH = "1970-01-01T00:00:00.000Z";
+
+/**
+ * Last write wins: apply the remote copy when there's no local one or it is strictly newer. A
+ * local row still at the epoch (settings only edited by onboarding) also yields to an equal one,
+ * so the first phone to sync seeds the server and later phones adopt its settings instead of
+ * each keeping its own.
+ */
 export function remoteWins(local: Syncable | undefined, remote: Syncable): boolean {
   if (!local) return true;
-  return Date.parse(remote.updatedAt) > Date.parse(local.updatedAt);
+  const r = Date.parse(remote.updatedAt);
+  const l = Date.parse(local.updatedAt);
+  return r > l || (r === l && local.updatedAt === SETTINGS_EPOCH);
 }
 
 /**

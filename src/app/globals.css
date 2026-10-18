@@ -4,7 +4,7 @@
   --color-bg: #0b0f0e;
   --color-surface: #141a19;
   --color-surface-2: #1c2422;
-  --color-line: #4a5754;
+  --color-line: #6b7a76;
   --color-ink: #eef3f1;
   --color-muted: #9aa8a4;
   --color-accent: #f2a541;
@@ -18,6 +18,24 @@
 
 :root {
   color-scheme: dark;
+}
+
+/* Light theme for bright rooms and daylight. Colours that carry text are darkened so they keep
+   4.5:1 on white and on their own 15% tint; borders keep 3:1; the accent flips to white ink. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f4f2ed;
+  --color-surface: #ffffff;
+  --color-surface-2: #eae7e0;
+  --color-line: #727c77;
+  --color-ink: #141a18;
+  --color-muted: #4c5854;
+  --color-accent: #8c5000;
+  --color-accent-ink: #ffffff;
+  --color-good: #176640;
+  --color-warn: #735300;
+  --color-bad: #a82c25;
+  --color-info: #1a5496;
 }
 
 html,

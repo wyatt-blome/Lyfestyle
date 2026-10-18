@@ -63,6 +63,8 @@ test("backup: export → wipe → import restores everything", async ({ page }) 
   await page.goto("/fast");
   await page.getByRole("button", { name: "Start 16:8 fast" }).click();
   await page.getByRole("button", { name: "+ Black coffee" }).click();
+  // Let the entry land before leaving the page, so the backup includes it.
+  await expect(page.getByRole("term").filter({ hasText: "Coffee" }).locator("+ dd")).toHaveText("1");
   page.on("dialog", (d) => d.accept());
   await page.goto("/settings");
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Export backup (JSON)" }).click()]);

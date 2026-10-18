@@ -7,6 +7,7 @@ import {
   pendingSignInValid,
   pullQuery,
   remoteWins,
+  SETTINGS_EPOCH,
   syncConfigured,
   toRemote,
   uniqueConflict,
@@ -22,6 +23,11 @@ describe("last write wins", () => {
     expect(remoteWins(row("2026-10-01T00:00:01Z"), row("2026-10-01T00:00:00Z"))).toBe(false);
     // Ties keep the local copy.
     expect(remoteWins(row("2026-10-01T00:00:00Z"), row("2026-10-01T00:00:00Z"))).toBe(false);
+  });
+
+  it("lets untouched (epoch) settings adopt an equal remote copy, so two new phones agree", () => {
+    expect(remoteWins(row(SETTINGS_EPOCH), row(SETTINGS_EPOCH))).toBe(true);
+    expect(remoteWins(row("2026-10-01T00:00:00.000Z"), row(SETTINGS_EPOCH))).toBe(false);
   });
 
   it("treats soft deletes as ordinary newer writes", () => {

@@ -21,6 +21,8 @@ export interface Segment {
   mode?: TimerMode;
   /** The 4×4 work bouts take a heart-rate entry. */
   hrEntry?: boolean;
+  /** A move done at intervals during this segment (Z: a 1-min carry every 10 min). */
+  reminder?: SessionItem & { everySec: number };
 }
 
 // ---------- Building programs ----------
@@ -116,11 +118,16 @@ export function followAlong(blocks: Pick<SessionBlock, "label" | "items" | "roun
   const out: Segment[] = [];
   for (const b of blocks) {
     const rounds = b.rounds ?? 1;
+    // Interval moves (everySec) ride along as a reminder on the step before them.
+    const steps = b.items.filter((i) => !i.everySec);
     for (let r = 0; r < rounds; r++) {
-      b.items.forEach((item, idx) => {
+      steps.forEach((item, idx) => {
+        const origIdx = b.items.indexOf(item);
+        const along = b.items[origIdx + 1];
+        const reminder = along?.everySec ? { ...along, everySec: along.everySec } : undefined;
         const sets = item.sets ?? 1;
         for (let s = 0; s < sets; s++) {
-          const next = b.items[idx + 1] ?? (r < rounds - 1 ? b.items[0] : undefined);
+          const next = steps[idx + 1] ?? (r < rounds - 1 ? steps[0] : undefined);
           const items = next ? [item, next] : [item];
           const label = rounds > 1 ? `${b.label} · round ${r + 1}` : b.label;
           if (item.seconds) {
@@ -128,7 +135,7 @@ export function followAlong(blocks: Pick<SessionBlock, "label" | "items" | "roun
             for (let side = 0; side < sides; side++) {
               // Side 1 previews side 2 of the same move.
               const preview = side < sides - 1 ? [item, item] : items;
-              out.push({ kind: "work", label: sides > 1 ? `${label} · side ${side + 1}` : label, durationSec: item.seconds, items: preview, round: s + 1, rounds: sets });
+              out.push({ kind: "work", label: sides > 1 ? `${label} · side ${side + 1}` : label, durationSec: item.seconds, items: preview, round: s + 1, rounds: sets, reminder });
             }
           } else {
             out.push({ kind: "work", label, durationSec: null, items, round: s + 1, rounds: sets });
@@ -313,6 +320,28 @@ export function bump(run: Run, key: keyof Run["counters"], by = 1): Run {
 /** The score a Quick 20 saves: AMRAP rounds, LADDER top rung, or completed work segments. */
 export function quickScore(run: Run): { rounds: number; rungs: number; extraReps: number } {
   return run.counters;
+}
+
+/** The interval reminder (if any) that fires between two moments in the same segment: Z's carry. */
+export function reminderDue(run: Run, from: number, to: number): { index: number; item: SessionItem } | null {
+  const a = position(run, from);
+  const b = position(run, to);
+  const r = b.segment?.reminder;
+  if (!r || a.index !== b.index || b.segRemainingMs === null) return null;
+  const every = r.everySec * 1000;
+  // Fire at each 10-min mark, but not when fewer than r.seconds remain in the walk.
+  const mark = Math.floor(b.segElapsedMs / every);
+  if (mark === 0 || mark === Math.floor(a.segElapsedMs / every) || b.segRemainingMs < (r.seconds ?? 0) * 1000) return null;
+  return { index: mark, item: r };
+}
+
+/** True while an interval reminder's minute is running (show "carry now"). */
+export function reminderActive(p: Position): boolean {
+  const r = p.segment?.reminder;
+  if (!r || p.segRemainingMs === null) return false;
+  const every = r.everySec * 1000;
+  const into = p.segElapsedMs % every;
+  return p.segElapsedMs >= every && into < (r.seconds ?? 60) * 1000;
 }
 
 /** Cue events between two moments: segment changes and the last-3-second countdown. */

@@ -119,6 +119,8 @@ export interface SessionItem {
   loadLb?: number;
   restSec?: number;
   note?: string;
+  /** Done at intervals during the block's previous item, not as a step of its own (Z's carry). */
+  everySec?: number;
 }
 
 export interface SessionBlock {
@@ -297,6 +299,8 @@ export interface NotificationPrefs {
   vibrate: boolean;
 }
 
+export type ThemePref = "dark" | "light" | "system";
+
 export interface Settings {
   id: "settings";
   units: "imperial" | "metric";
@@ -309,6 +313,8 @@ export interface Settings {
   dumbbellsLb: number[];
   notifications: NotificationPrefs;
   onboarded: boolean;
+  /** Colour theme; absent means dark (the gym-at-6am default). */
+  theme?: ThemePref;
   lastBackupAt?: string;
   updatedAt: string;
 }

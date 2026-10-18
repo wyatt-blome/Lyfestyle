@@ -2,7 +2,7 @@
 import { db, USER_TABLES } from "@/db/db";
 import { backupFileName, makeBackup, parseBackup } from "@/lib/backup";
 import { saveSettings } from "./settings";
-import { resetSyncCursors, signOut } from "./sync";
+import { resetSyncCursors, settleSync, signOut } from "./sync";
 
 export async function exportAll(): Promise<{ blob: Blob; fileName: string }> {
   const d = db();
@@ -35,6 +35,9 @@ export async function downloadBackup(): Promise<void> {
 export async function importAll(text: string): Promise<number> {
   const backup = parseBackup(text, USER_TABLES);
   const d = db();
+  // Stop a sync in flight first so it can't write pulled rows over the restored ones.
+  resetSyncCursors();
+  await settleSync();
   let count = 0;
   await d.transaction("rw", USER_TABLES.map((t) => d.table(t)), async () => {
     for (const t of USER_TABLES) {
@@ -51,11 +54,13 @@ export async function importAll(text: string): Promise<number> {
 
 export async function wipeAll(): Promise<void> {
   const d = db();
+  // Erasing this phone also signs it out of sync, or the next sync would bring everything back.
+  // Sign out first and let a sync in flight stop, so it can't write rows after the clear.
+  signOut();
+  await settleSync();
   await d.transaction("rw", USER_TABLES.map((t) => d.table(t)), async () => {
     for (const t of USER_TABLES) await d.table(t).clear();
   });
-  // Erasing this phone also signs it out of sync, or the next sync would bring everything back.
-  signOut();
   resetSyncCursors();
 }
 

@@ -5,7 +5,7 @@ import { downloadBackup, importAll, wipeAll } from "@/client/backup";
 import { saveSettings, useSettings } from "@/client/settings";
 import { PROTOCOLS } from "@/lib/fasting";
 import { formatDayTime } from "@/lib/time";
-import type { NotificationPrefs, ProtocolId } from "@/lib/types";
+import type { NotificationPrefs, ProtocolId, ThemePref } from "@/lib/types";
 import { Button, Card, Check, Field, Page } from "../kit";
 import { PushSettings } from "../PushSettings";
 import { SyncSettings } from "../SyncSettings";
@@ -14,6 +14,12 @@ import { useToast } from "../Toast";
 function parseList(s: string): number[] {
   return [...new Set(s.split(/[ ,]+/).map(Number).filter((n) => n > 0 && n < 400))].sort((a, b) => a - b);
 }
+
+const THEMES: { id: ThemePref; label: string }[] = [
+  { id: "dark", label: "Dark" },
+  { id: "light", label: "Light" },
+  { id: "system", label: "Phone" },
+];
 
 export function SettingsScreen() {
   const s = useSettings();
@@ -40,6 +46,23 @@ export function SettingsScreen() {
           />
         </Field>
         <p className="mt-2 text-sm text-muted">Time zone: {s.tz} (from this device)</p>
+      </Card>
+
+      <Card title="Look">
+        <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Theme">
+          {THEMES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="radio"
+              aria-checked={(s.theme ?? "dark") === t.id}
+              onClick={() => void saveSettings({ theme: t.id })}
+              className={`min-h-12 rounded-2xl px-1 text-lg ${(s.theme ?? "dark") === t.id ? "bg-accent text-accent-ink" : "border border-line bg-surface-2"}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </Card>
 
       <Card title="Fasting">

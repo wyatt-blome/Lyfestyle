@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { sessions } from "@/seed/sessions";
 import {
+  reminderActive,
+  reminderDue,
   advance,
   endedEarly,
   finishedSegments,
@@ -169,5 +171,25 @@ describe("review fixes", () => {
     const segs = followAlong([{ label: "M", items: [{ exerciseId: "couch-stretch", seconds: 60, perSide: true }, { exerciseId: "cat-camel", reps: 8 }] }]);
     expect(segs[0].items.map((i) => i.exerciseId)).toEqual(["couch-stretch", "couch-stretch"]);
     expect(segs[1].items.map((i) => i.exerciseId)).toEqual(["couch-stretch", "cat-camel"]);
+  });
+});
+
+describe("Z carry reminder", () => {
+  const t0 = 1_000_000;
+  it("rides along the walk instead of being a step after it", () => {
+    const z = sessions.find((s) => s.id === "Z")!;
+    const segs = followAlong(z.blocks);
+    expect(segs.some((s) => s.items[0].exerciseId === "kb-suitcase-carry")).toBe(false);
+    expect(segs[0].reminder?.everySec).toBe(600);
+  });
+  it("fires every 10 minutes and shows for a minute", () => {
+    const run = createRun(followAlong(sessions.find((s) => s.id === "Z")!.blocks), t0);
+    expect(reminderDue(run, t0 + 9.9 * MIN, t0 + 10.1 * MIN)?.index).toBe(1);
+    expect(reminderDue(run, t0 + 10.1 * MIN, t0 + 10.2 * MIN)).toBeNull();
+    expect(reminderDue(run, t0 + 19.9 * MIN, t0 + 20.1 * MIN)?.index).toBe(2);
+    expect(reminderActive(position(run, t0 + 10.5 * MIN))).toBe(true);
+    expect(reminderActive(position(run, t0 + 11.5 * MIN))).toBe(false);
+    // Not in the last minute of the 40-min walk.
+    expect(reminderDue(run, t0 + 39.95 * MIN, t0 + 40 * MIN - 1)).toBeNull();
   });
 });

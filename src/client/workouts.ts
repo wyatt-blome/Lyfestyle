@@ -67,6 +67,17 @@ async function doSave(
   blocks: SessionBlock[],
   opts: { progress: boolean; progressSets?: (s: WorkoutLog["sets"][number]) => boolean },
 ): Promise<{ log: WorkoutLog; messages: string[] }> {
+  // One transaction: the log and its progression land together, so a failed save never leaves a
+  // stored log whose retry would skip progression.
+  const d = db();
+  return d.transaction("rw", d.workoutLogs, d.progression, d.settings, () => saveInTx(log, blocks, opts));
+}
+
+async function saveInTx(
+  log: Omit<WorkoutLog, "id" | "createdAt" | "updatedAt">,
+  blocks: SessionBlock[],
+  opts: { progress: boolean; progressSets?: (s: WorkoutLog["sets"][number]) => boolean },
+): Promise<{ log: WorkoutLog; messages: string[] }> {
   const already = (await db().workoutLogs.where("templateId").equals(log.templateId).toArray()).find(
     (l) => l.startedAt === log.startedAt && !l.deletedAt,
   );

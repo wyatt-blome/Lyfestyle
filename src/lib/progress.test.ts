@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BodyMetric, Fast, Readiness, WorkoutLog, WorkoutSet } from "./types";
 import {
+  weekLine,
   fastingHoursSeries,
   hrSeries,
   isoWeek,
@@ -189,5 +190,14 @@ describe("weekly summary", () => {
       weightChange: -1.5,
     });
     expect(lastWeek).toMatchObject({ fastsEnded: 1, fastsCompleted: 1, sessions: 2, avgReadiness: undefined, weightChange: undefined });
+  });
+});
+
+describe("weekLine", () => {
+  const base = { monday: "2026-10-12", fastsEnded: 0, fastsCompleted: 0, hitRate: 0, avgHours: 0, sessions: 0 };
+  it("summarizes the week in one line, skipping what's empty", () => {
+    expect(weekLine({ ...base, fastsEnded: 4, fastsCompleted: 3, sessions: 2, weightChange: -1.2 })).toBe("3/4 fasts hit · 2 sessions · −1.2 lb");
+    expect(weekLine({ ...base, sessions: 1 })).toBe("1 session");
+    expect(weekLine({ ...base, sessions: 0, weightChange: 0.5 })).toBe("0 sessions · +0.5 lb");
   });
 });

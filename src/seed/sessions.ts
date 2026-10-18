@@ -317,7 +317,7 @@ const Z: SessionTemplate = {
           seconds: 2400,
           note: "30–50 min; full-sentence, mostly nose-breathing pace, 60–70% HRmax; a brisk walk, hike or chores",
         },
-        { exerciseId: "kb-suitcase-carry", seconds: 60, loadLb: 40, note: "optional: 1 min every 10 min" },
+        { exerciseId: "kb-suitcase-carry", seconds: 60, loadLb: 40, everySec: 600, note: "optional: 1 min every 10 min" },
       ],
     },
     copyBlock(Z_FINISH),

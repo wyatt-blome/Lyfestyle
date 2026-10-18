@@ -1,7 +1,11 @@
 "use client";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useActiveFast } from "@/client/fasts";
+import { useActiveFast, useFasts } from "@/client/fasts";
+import { useMetrics } from "@/client/metrics";
+import { useAllReadiness } from "@/client/readiness";
+import { useWorkoutLogs } from "@/client/workouts";
+import { weekLine, weeklySummary } from "@/lib/progress";
 import { useSettings } from "@/client/settings";
 import { useTodayPlan } from "@/client/today";
 import { useNow } from "@/client/useNow";
@@ -29,7 +33,13 @@ export function HomeScreen() {
   const protocol = fast?.protocol ?? settings?.defaultProtocol ?? "16:8";
   const teaser = cardsFor(whyCards, protocolKeys(protocol, fast?.targetHours ?? protocolDef(protocol).targetHours))[0];
 
-  const loading = !settings || fast === undefined || !plan || firstUse === undefined;
+  const fasts = useFasts();
+  const logs = useWorkoutLogs();
+  const metrics = useMetrics();
+  const readiness = useAllReadiness();
+  const loading =
+    !settings || fast === undefined || !plan || firstUse === undefined || !fasts || !logs || !metrics || !readiness;
+  const week = loading ? null : weeklySummary({ fasts, logs, metrics, readiness }, now, settings.tz).thisWeek;
 
   return (
     <main className="mx-auto flex max-w-xl flex-col gap-4 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-safe">
@@ -87,6 +97,13 @@ export function HomeScreen() {
           <Card title={fast ? "Fast-safe drinks" : "Quick add"}>
             <QuickDrinks />
           </Card>
+
+          {week && (
+            <Link href="/progress" className="btn flex min-h-14 flex-col justify-center rounded-3xl bg-surface px-4 py-3">
+              <span className="text-sm uppercase tracking-wide text-muted">This week</span>
+              <span className="text-lg font-semibold tabular">{weekLine(week)}</span>
+            </Link>
+          )}
 
           {teaser && <WhyTeaser card={teaser} />}
         </>

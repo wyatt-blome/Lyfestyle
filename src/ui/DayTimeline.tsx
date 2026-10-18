@@ -126,7 +126,7 @@ export function DayTimeline({
       <p className="sr-only">
         {segs
           .filter((s) => s.kind !== "future")
-          .map((s) => `${s.kind === "fasting" ? "Fasting" : "Eating"} ${formatTime(s.start, tz)} to ${formatTime(s.end, tz)}.`)
+          .map((s) => `${s.kind === "fasting" ? "Fasting" : s.kind === "untracked" ? "Not tracked" : "Eating"} ${formatTime(s.start, tz)} to ${formatTime(s.end, tz)}.`)
           .join(" ")}{" "}
         {sorted.map((e) => `${formatTime(e.at, tz)} ${e.name}.`).join(" ")}
       </p>

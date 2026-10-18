@@ -49,3 +49,15 @@ test("every exercise shows a demo or a clear follow-the-cues state, and Credits 
     await expect(page.getByText(s).first()).toBeVisible();
   }
 });
+
+test("the light theme sticks across a reload without a dark flash", async ({ page }) => {
+  await page.goto("/settings");
+  await page.getByRole("radio", { name: "Light" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  // Read before hydration: the boot script in <head> must already have set it.
+  await page.reload({ waitUntil: "commit" });
+  await page.waitForSelector("body");
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe("light");
+  await page.getByRole("radio", { name: "Dark" }).click();
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme", "light");
+});

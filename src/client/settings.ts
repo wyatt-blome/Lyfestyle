@@ -1,10 +1,11 @@
 "use client";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/db/db";
+import { SETTINGS_EPOCH } from "@/lib/sync";
 import { dateKey, deviceTz } from "@/lib/time";
 import type { Settings } from "@/lib/types";
 
-export const SETTINGS_EPOCH = "1970-01-01T00:00:00.000Z";
+export { SETTINGS_EPOCH };
 
 export function defaultSettings(now = new Date()): Settings {
   return {
