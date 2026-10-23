@@ -4,7 +4,6 @@ import { getViewer } from "@/server/auth";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const viewer = await getViewer();
-  if (!viewer) return new Response("Not found", { status: 404 });
   const { id } = await ctx.params;
   const db = await getDb();
   const [row] = await db

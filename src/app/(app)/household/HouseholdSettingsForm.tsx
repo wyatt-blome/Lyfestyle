@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { signOut } from "@/actions/auth";
 import { newCode, saveSettings, setPantryItem } from "@/actions/household";
 import { Icon } from "@/components/icons";
 import { Button, Card, Chip, ErrorText, Field, inputClass, Stepper } from "@/components/ui";
@@ -207,11 +206,6 @@ export function HouseholdSettingsForm(props: {
         </p>
       </Card>
 
-      <form action={signOut}>
-        <Button type="submit" variant="ghost" className="w-full text-muted">
-          Sign out
-        </Button>
-      </form>
     </div>
   );
 }
