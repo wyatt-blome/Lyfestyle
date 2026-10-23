@@ -4,7 +4,8 @@ import { and, eq, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, schema } from "@/db";
-import { aiAvailable, AiError, extractRecipeFromImage } from "@/lib/import/ai";
+import { aiAvailable, AiError, extractPageFromImage, extractRecipeFromImage } from "@/lib/import/ai";
+import type { RecipePart } from "@/lib/import/pages";
 import { FetchError } from "@/lib/import/fetch";
 import { importFromUrl, listBoardPins, type ImportResult } from "@/lib/import/importUrl";
 import type { ImportedRecipe } from "@/lib/import/types";
@@ -39,6 +40,93 @@ export async function importPhoto(base64: string, mediaType: string): Promise<Re
   } catch (e) {
     return failure(e);
   }
+}
+
+/** One photographed page read by Claude; the browser groups pages into recipes. */
+export async function readPhotoPage(base64: string, mediaType: string): Promise<Result<RecipePart[]>> {
+  await requireViewer();
+  const type = z.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]).safeParse(mediaType);
+  if (!type.success) return { ok: false, error: "Use a JPEG or PNG photo." };
+  if (base64.length > 4_000_000) return { ok: false, error: "That photo is too large." };
+  try {
+    return { ok: true, value: await extractPageFromImage({ base64, mediaType: type.data }) };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+const FileRecipe = z.object({
+  title: z.string().trim().min(1).max(200),
+  description: z.string().max(2000).nullish(),
+  servings: z.number().int().min(1).max(100).nullish(),
+  prepMinutes: z.number().int().min(0).max(10000).nullish(),
+  cookMinutes: z.number().int().min(0).max(10000).nullish(),
+  ingredients: z.array(z.string().max(300)).max(150).default([]),
+  steps: z.array(z.string().max(3000)).max(100).default([]),
+  tags: z.array(z.string().max(30)).max(20).default([]),
+  mealTypes: z.array(z.enum(["breakfast", "lunch", "dinner"])).max(3).default([]),
+  notes: z.string().max(5000).nullish(),
+  sourceUrl: z.string().url().max(2000).nullish(),
+  isFavorite: z.boolean().default(false),
+});
+
+/**
+ * Bring in a recipe file (JSON: { "recipes": [...] }), e.g. one prepared from a stack of photos.
+ * Recipes whose name is already in the library are skipped.
+ */
+export async function importRecipeFile(json: string): Promise<Result<{ added: number; skipped: string[]; invalid: number }>> {
+  const viewer = await requireViewer();
+  let data: unknown;
+  try {
+    data = JSON.parse(json);
+  } catch {
+    return { ok: false, error: "That file isn't a recipe file (it isn't valid JSON)." };
+  }
+  const list = Array.isArray(data) ? data : (data as { recipes?: unknown })?.recipes;
+  if (!Array.isArray(list) || !list.length) return { ok: false, error: "No recipes found in that file." };
+  if (list.length > 2000) return { ok: false, error: "That file has too many recipes; split it into smaller files." };
+  const db = await getDb();
+  const existing = new Set(
+    (await db.select({ title: schema.recipes.title }).from(schema.recipes).where(eq(schema.recipes.householdId, viewer.household.id))).map((r) =>
+      r.title.trim().toLowerCase(),
+    ),
+  );
+  let added = 0;
+  let invalid = 0;
+  const skipped: string[] = [];
+  for (const raw of list) {
+    const parsed = FileRecipe.safeParse(raw);
+    if (!parsed.success) {
+      invalid++;
+      continue;
+    }
+    const r = parsed.data;
+    if (existing.has(r.title.trim().toLowerCase())) {
+      skipped.push(r.title);
+      continue;
+    }
+    const saved = await saveRecipe({
+      title: r.title,
+      description: r.description ?? null,
+      servings: r.servings ?? null,
+      prepMinutes: r.prepMinutes ?? null,
+      cookMinutes: r.cookMinutes ?? null,
+      ingredients: r.ingredients,
+      steps: r.steps,
+      tags: r.tags,
+      mealTypes: r.mealTypes,
+      notes: r.notes ?? null,
+      sourceUrl: r.sourceUrl ?? null,
+      sourceType: "photo",
+      isFavorite: r.isFavorite,
+    });
+    if (saved.ok) {
+      added++;
+      existing.add(r.title.trim().toLowerCase());
+    } else invalid++;
+  }
+  revalidatePath("/recipes");
+  return { ok: true, value: { added, skipped, invalid } };
 }
 
 export async function photoImportAvailable(): Promise<boolean> {

@@ -8,7 +8,8 @@ A household meal-planning and grocery app. Keep your recipes in one place, plan 
 - Import from a **Pinterest pin** (`pin.it/…` or `pinterest.com/pin/…`): the app follows the pin to the recipe website and reads the recipe from it.
 - Import a **whole Pinterest board**, or paste many links at once and let it work through them.
 - Import from any **recipe website** that publishes standard recipe data (most do).
-- Import from a **photo** of a recipe card or cookbook page. This needs an Anthropic API key (see below). Without one, copy the text out of the photo with your phone's Live Text and use **Paste text**.
+- Import from **photos** of recipe cards or cookbook pages, several at a time. Recipes that run over more than one page are grouped automatically (and a page holding two recipes is split); you can join or split groups before saving. Photos are read on the phone for free, which works well for printed recipes. With an Anthropic API key, Claude reads them instead, which also handles handwriting.
+- Import a **recipe file** (`.json`, under *Many at once*), for example one prepared from a large stack of photos.
 - **Paste** recipe text, or **type** a recipe in.
 - Mark recipes as a **Favorite**, or as a **Staple** that comes back every 1–4 weeks.
 
@@ -49,7 +50,7 @@ With no `DATABASE_URL`, data lives in an embedded Postgres under `.data/`, which
 
 1. Push this repo to GitHub and import it in [Vercel](https://vercel.com/new).
 2. Add a Postgres database: in the Vercel project, open **Storage → Create → Neon** (or create one at neon.tech) and connect it. That sets `DATABASE_URL`.
-3. Optional: add `ANTHROPIC_API_KEY` under **Settings → Environment Variables** to turn on photo import and reading image-only pins.
+3. Optional: add `ANTHROPIC_API_KEY` under **Settings → Environment Variables** so Claude reads handwritten cards and image-only pins. Photo import works without it, reading printed recipes on the phone.
 4. Deploy. Tables are created automatically on first request.
 5. Open the site on your phone and use **Share → Add to Home Screen** so it opens like an app.
 
@@ -60,7 +61,7 @@ The first person signs up and starts a household. Everyone else signs up with th
 | Variable | Needed | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | for deployment | Postgres connection string |
-| `ANTHROPIC_API_KEY` | optional | Photo import and image-only Pinterest pins (Claude reads the recipe from the image) |
+| `ANTHROPIC_API_KEY` | optional | Claude reads photos (better with handwriting) and image-only Pinterest pins. Without it, photos are read on the phone. |
 
 ## Limits worth knowing
 
@@ -85,10 +86,33 @@ src/lib/ingredients/   parse.ts (ingredient lines), units.ts, normalize.ts (name
                        catalog.ts (aisles, shelf life, Walmart/Sam's package sizes), grocery.ts (list builder)
 src/lib/planner.ts     swap ranking and auto-fill, scored by waste added/removed, mood, favorites, staples
 src/lib/moods.ts       "what are you in the mood for" matching and meal-type inference
-src/lib/import/        recipe-site (schema.org) reader, Pinterest pins/boards, pasted text, photo (Claude)
+src/lib/import/        recipe-site (schema.org) reader, Pinterest pins/boards, pasted text, photo pages (Claude) and page grouping
+src/lib/ocr/           free on-device photo reader (Tesseract, served from public/ocr)
 src/lib/stores.ts      Walmart / Sam's Club links
 src/db/                Drizzle schema; Postgres in production, PGlite locally
 src/server/            auth (email + password, household invite codes) and data helpers
 src/actions/           server actions
 src/app/               screens: week, recipes, list, household, sign-in
 ```
+
+### Recipe file format
+
+```json
+{
+  "recipes": [
+    {
+      "title": "Grandma's Pot Roast",
+      "servings": 6,
+      "prepMinutes": 20,
+      "cookMinutes": 180,
+      "ingredients": ["3 lb chuck roast", "1 onion, quartered"],
+      "steps": ["Brown the roast.", "Roast at 300 for 3 hours."],
+      "tags": ["beef", "comfort"],
+      "mealTypes": ["dinner"],
+      "notes": "From the blue recipe box"
+    }
+  ]
+}
+```
+
+Recipes whose name is already in the library are skipped, so a file can be imported again safely.

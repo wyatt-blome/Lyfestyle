@@ -2,6 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
+import type { RecipePart } from "./pages";
 import { emptyRecipe, type ImportedRecipe } from "./types";
 
 // Reads recipes out of photos (recipe cards, cookbook pages, screenshots) and out of
@@ -79,4 +80,59 @@ export async function extractRecipeFromImage(image: ImageInput, hint?: string): 
     steps: out.steps,
     tags: out.tags.map((t) => t.toLowerCase()).slice(0, 8),
   });
+}
+
+const PageSchema = z.object({
+  parts: z
+    .array(
+      z.object({
+        title: z.string().nullable().describe("the recipe name if this part starts a recipe on this page, else null"),
+        continuesFromPrevious: z.boolean().describe("true if this part picks up a recipe begun on an earlier page (no title, starts mid-list or mid-step, or says continued)"),
+        continuesOnNext: z.boolean().describe("true if the recipe runs off this page (cut off mid-step, ingredients with no method yet, or says continued/over)"),
+        description: z.string().nullable(),
+        servings: z.number().int().nullable(),
+        prepMinutes: z.number().int().nullable(),
+        cookMinutes: z.number().int().nullable(),
+        ingredients: z.array(z.string()),
+        steps: z.array(z.string()),
+        tags: z.array(z.string()),
+      }),
+    )
+    .describe("one entry per recipe or recipe fragment on the page, top to bottom; empty if the page has no recipe"),
+});
+
+const PAGE_PROMPT = `This photo is one page of a family's recipe collection: a recipe card, a cookbook page, or a printout. A recipe may continue across several pages, and one page may hold more than one recipe.
+For each recipe or recipe fragment on the page, top to bottom:
+- Copy ingredient lines exactly as written, one per entry, with amounts and units. Add a group name ("For the sauce") as its own entry ending in a colon.
+- Write each instruction step as its own entry. Fix obvious handwriting slips but do not invent steps or amounts; leave out anything unreadable.
+- Give the title only if the recipe starts on this page.
+- Say whether the fragment continues from an earlier page or runs on to the next one.`;
+
+/** Read one photographed page into recipe parts, for grouping multi-page recipes. */
+export async function extractPageFromImage(image: ImageInput): Promise<RecipePart[]> {
+  if (!aiAvailable()) throw new AiError("Photo reading with Claude isn't switched on.");
+  const client = new Anthropic();
+  const source =
+    "url" in image
+      ? ({ type: "url", url: image.url } as const)
+      : ({ type: "base64", media_type: image.mediaType, data: image.base64 } as const);
+  let response;
+  try {
+    response = await client.beta.messages.parse({
+      model: "claude-opus-5-5",
+      max_tokens: 16000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: { effort: "low", format: betaZodOutputFormat(PageSchema) },
+      messages: [{ role: "user", content: [{ type: "image", source }, { type: "text", text: PAGE_PROMPT }] }],
+    });
+  } catch (e) {
+    if (e instanceof Anthropic.AuthenticationError) throw new AiError("The Anthropic API key was rejected. Check ANTHROPIC_API_KEY.");
+    if (e instanceof Anthropic.RateLimitError) throw new AiError("Too many photos at once. Try again in a minute.");
+    if (e instanceof Anthropic.BadRequestError) throw new AiError("That image couldn't be read. Try a clearer photo.");
+    if (e instanceof Anthropic.APIError) throw new AiError("The photo reader is unavailable right now. Try again shortly.");
+    throw e;
+  }
+  if (response.stop_reason === "refusal") throw new AiError("The photo couldn't be processed.");
+  return (response.parsed_output?.parts ?? []).map((p) => ({ ...p, tags: p.tags.map((t) => t.toLowerCase()).slice(0, 8) }));
 }

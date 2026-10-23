@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
-import { boardPins, importAndSave, importLink, importPhoto } from "@/actions/recipes";
+import { boardPins, importAndSave, importLink, importRecipeFile } from "@/actions/recipes";
 import { Icon, type IconName } from "@/components/icons";
 import { RecipeEditor, type EditorValue } from "@/components/RecipeEditor";
 import { Button, Card, cx, ErrorText, inputClass, textareaClass } from "@/components/ui";
 import { classifyPinterestUrl } from "@/lib/import/pinterest";
 import { parseRecipeText } from "@/lib/import/text";
 import type { ImportedRecipe } from "@/lib/import/types";
+import { PhotoImport } from "./PhotoImport";
 
 type Tab = "link" | "bulk" | "photo" | "text" | "manual";
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
@@ -96,7 +97,7 @@ export function AddRecipe({ aiEnabled, initialTab }: { aiEnabled: boolean; initi
       ) : tab === "bulk" ? (
         <BulkImport />
       ) : tab === "photo" ? (
-        <PhotoImport aiEnabled={aiEnabled} onDone={edit} onUseText={() => setTab("text")} />
+        <PhotoImport aiEnabled={aiEnabled} onUseText={() => setTab("text")} />
       ) : tab === "text" ? (
         <TextImport onDone={edit} />
       ) : (
@@ -211,6 +212,7 @@ function BulkImport() {
       </div>
       {!rows ? (
         <>
+          <FileImport />
           <textarea value={input} onChange={(e) => setInput(e.target.value)} rows={6} placeholder={"https://www.pinterest.com/you/dinner-ideas/\n\nor\n\nhttps://pin.it/abc\nhttps://www.allrecipes.com/recipe/…"} className={textareaClass} />
           <ErrorText>{error}</ErrorText>
           <Button variant="primary" size="lg" busy={pending} onClick={load} disabled={!input.trim()}>
@@ -284,69 +286,50 @@ function BulkImport() {
   );
 }
 
-async function downscale(file: File, max: number, quality: number): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  return canvas.toDataURL("image/jpeg", quality);
-}
-
-function PhotoImport({ aiEnabled, onDone, onUseText }: { aiEnabled: boolean; onDone: (v: EditorValue, notice?: string | null) => void; onUseText: () => void }) {
+function FileImport() {
+  const [result, setResult] = useState<string>();
   const [error, setError] = useState<string>();
-  const [preview, setPreview] = useState<string | null>(null);
   const [pending, start] = useTransition();
-
-  if (!aiEnabled) {
-    return (
-      <Card className="flex flex-col gap-3 p-5">
-        <h2 className="font-display text-xl font-semibold">Photo import isn&apos;t switched on yet</h2>
-        <p className="text-sm text-muted">
-          Reading recipe cards from photos needs an Anthropic API key in the app&apos;s settings (ANTHROPIC_API_KEY). Until then, on iPhone or Android you can copy the text right out of a photo: open the photo, press and hold on the words, tap <strong>Select All</strong> then <strong>Copy</strong>, and paste it here.
-        </p>
-        <Button variant="primary" onClick={onUseText}>
-          <Icon name="text" /> Paste recipe text instead
-        </Button>
-      </Card>
-    );
-  }
-
-  const pick = (file: File | undefined) => {
-    if (!file) return;
-    start(async () => {
-      setError(undefined);
-      try {
-        const [full, thumb] = await Promise.all([downscale(file, 1600, 0.85), downscale(file, 480, 0.75)]);
-        setPreview(thumb);
-        const res = await importPhoto(full.split(",")[1], "image/jpeg");
-        if (!res.ok) return setError(res.error);
-        onDone({ ...toEditor(res.value, "photo"), imageUrl: thumb }, "Read from your photo. Check the amounts before saving.");
-      } catch {
-        setError("Couldn't open that image. Try a JPEG or PNG.");
-      }
-    });
-  };
-
   return (
-    <Card className="flex flex-col gap-4 p-5">
-      <div>
-        <h2 className="font-display text-xl font-semibold">Snap a recipe card or cookbook page</h2>
-        <p className="mt-1 text-sm text-muted">Handwritten cards work. Get the whole recipe in frame, in good light.</p>
-      </div>
-      {preview ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={preview} alt="Your photo" className="max-h-64 self-center rounded-xl object-contain" />
+    <div className="rounded-2xl border border-dashed border-line p-3 text-sm">
+      <p className="font-medium">Have a recipe file?</p>
+      <p className="text-xs text-muted">A .json recipe file, such as one made from a stack of photos.</p>
+      <label className={cx("mt-2 inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-line bg-surface px-4 font-medium", pending && "opacity-60")}>
+        {pending ? <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <Icon name="plus" className="size-4" />}
+        Import a recipe file
+        <input
+          type="file"
+          accept=".json,application/json"
+          className="sr-only"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (!file) return;
+            start(async () => {
+              setError(undefined);
+              setResult(undefined);
+              const res = await importRecipeFile(await file.text());
+              if (!res.ok) return setError(res.error);
+              const { added, skipped, invalid } = res.value;
+              setResult(
+                [`Added ${added} recipe${added === 1 ? "" : "s"}.`, skipped.length ? `${skipped.length} already in your recipes.` : "", invalid ? `${invalid} couldn't be read.` : ""]
+                  .filter(Boolean)
+                  .join(" "),
+              );
+            });
+          }}
+        />
+      </label>
+      {result ? (
+        <p className="mt-2 text-brand">
+          {result}{" "}
+          <Link href="/recipes" className="underline underline-offset-2">
+            See recipes
+          </Link>
+        </p>
       ) : null}
       <ErrorText>{error}</ErrorText>
-      <label className={cx("flex h-14 cursor-pointer items-center justify-center gap-2 rounded-full bg-brand font-medium text-brand-ink", pending && "pointer-events-none opacity-60")}>
-        {pending ? <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <Icon name="camera" />}
-        {pending ? "Reading your recipe…" : "Take or choose a photo"}
-        <input type="file" accept="image/*" className="sr-only" onChange={(e) => pick(e.target.files?.[0])} />
-      </label>
-    </Card>
+    </div>
   );
 }
 

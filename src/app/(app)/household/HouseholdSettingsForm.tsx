@@ -202,8 +202,8 @@ export function HouseholdSettingsForm(props: {
         <h2 className="font-display text-lg font-semibold">Photo import</h2>
         <p className="mt-1 text-muted">
           {props.aiEnabled
-            ? "On. Recipe cards, cookbook pages and image-only pins can be read from photos."
-            : "Off. Add an ANTHROPIC_API_KEY to the app's environment to read recipes from photos and image-only pins."}
+            ? "Claude reads photos, including handwritten cards and image-only pins. The free on-phone reader is also available."
+            : "Photos are read on the phone, free; printed recipes work best. To have Claude read handwriting and image-only pins, add an ANTHROPIC_API_KEY to the app's environment."}
         </p>
       </Card>
 

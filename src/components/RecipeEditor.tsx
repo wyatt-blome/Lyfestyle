@@ -31,7 +31,18 @@ export interface EditorValue {
 
 const num = (s: string) => (s.trim() === "" ? null : Math.max(0, Math.round(Number(s)) || 0));
 
-export function RecipeEditor({ initial, id, notice }: { initial: EditorValue; id?: string; notice?: string | null }) {
+export function RecipeEditor({
+  initial,
+  id,
+  notice,
+  onSaved,
+}: {
+  initial: EditorValue;
+  id?: string;
+  notice?: string | null;
+  /** when set, saving calls this instead of opening the recipe */
+  onSaved?: (id: string) => void;
+}) {
   const router = useRouter();
   const [v, setV] = useState(initial);
   const [ingredients, setIngredients] = useState(initial.ingredients.join("\n"));
@@ -76,6 +87,7 @@ export function RecipeEditor({ initial, id, notice }: { initial: EditorValue; id
         id,
       );
       if (!res.ok) setError(res.error);
+      else if (onSaved) onSaved(res.value.id);
       else router.push(`/recipes/${res.value.id}`);
     });
 
