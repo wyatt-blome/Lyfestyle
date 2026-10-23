@@ -2,9 +2,9 @@ import "server-only";
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { cache } from "react";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { DEFAULT_SETTINGS, type Household, type HouseholdSettings, type User } from "@/db/schema";
 
@@ -57,30 +57,44 @@ export interface Viewer {
   household: Household & { settings: HouseholdSettings };
 }
 
-export const getViewer = cache(async (): Promise<Viewer | null> => {
-  const token = (await cookies()).get(COOKIE)?.value;
-  if (!token) return null;
+const DEFAULT_HOUSEHOLD_ID = "default-household";
+const DEFAULT_USER_ID = "default-user";
+
+/**
+ * No sign-in: everyone uses one shared household. If accounts already exist, the earliest
+ * user's household is used so existing data stays visible; otherwise a default one is created.
+ */
+export const getViewer = cache(async (): Promise<Viewer> => {
+  await connection(); // always render per request, never at build time
   const db = await getDb();
-  const rows = await db
-    .select({ session: schema.sessions, user: schema.users, household: schema.households })
-    .from(schema.sessions)
-    .innerJoin(schema.users, eq(schema.users.id, schema.sessions.userId))
-    .innerJoin(schema.households, eq(schema.households.id, schema.users.householdId))
-    .where(eq(schema.sessions.id, tokenId(token)))
-    .limit(1);
-  const row = rows[0];
-  if (!row || row.session.expiresAt.getTime() < Date.now()) return null;
+  const load = () =>
+    db
+      .select({ user: schema.users, household: schema.households })
+      .from(schema.users)
+      .innerJoin(schema.households, eq(schema.households.id, schema.users.householdId))
+      .orderBy(asc(schema.users.createdAt))
+      .limit(1);
+  let [row] = await load();
+  if (!row) {
+    await db
+      .insert(schema.households)
+      .values({ id: DEFAULT_HOUSEHOLD_ID, name: "Our household", inviteCode: "DEFA-ULT0", settings: DEFAULT_SETTINGS })
+      .onConflictDoNothing();
+    await db
+      .insert(schema.users)
+      .values({ id: DEFAULT_USER_ID, householdId: DEFAULT_HOUSEHOLD_ID, email: "household@local", name: "Household", passwordHash: "disabled" })
+      .onConflictDoNothing();
+    [row] = await load();
+  }
   return {
     user: { id: row.user.id, name: row.user.name, email: row.user.email },
     household: { ...row.household, settings: { ...DEFAULT_SETTINGS, ...row.household.settings } },
   };
 });
 
-/** For pages and actions: the signed-in member, or off to the sign-in page. */
+/** For pages and actions: the shared default household (no sign-in). */
 export async function requireViewer(): Promise<Viewer> {
-  const viewer = await getViewer();
-  if (!viewer) redirect("/signin");
-  return viewer;
+  return getViewer();
 }
 
 export function newInviteCode(): string {
