@@ -54,7 +54,7 @@ With no `DATABASE_URL`, data lives in an embedded Postgres under `.data/`, which
 4. Deploy. Tables are created automatically on first request.
 5. Open the site on your phone and use **Share → Add to Home Screen** so it opens like an app.
 
-The first person signs up and starts a household. Everyone else signs up with the invite code from the **Household** tab.
+There is no sign-in: everyone who opens the link shares the same household, recipes, plan and list. Anyone who has the link can see and change them, so share it only with the household.
 
 ### Environment variables
 
@@ -90,9 +90,9 @@ src/lib/import/        recipe-site (schema.org) reader, Pinterest pins/boards, p
 src/lib/ocr/           free on-device photo reader (Tesseract, served from public/ocr)
 src/lib/stores.ts      Walmart / Sam's Club links
 src/db/                Drizzle schema; Postgres in production, PGlite locally
-src/server/            auth (email + password, household invite codes) and data helpers
+src/server/            the shared household (no sign-in) and data helpers
 src/actions/           server actions
-src/app/               screens: week, recipes, list, household, sign-in
+src/app/               screens: week, recipes, list, household
 ```
 
 ### Recipe file format
