@@ -1,0 +1,47 @@
+import Link from "next/link";
+import { Icon } from "@/components/icons";
+import { PageHeader } from "@/components/PageHeader";
+import { EmptyState } from "@/components/ui";
+import { recipeImageSrc } from "@/lib/images";
+import { inferMealTypes } from "@/lib/moods";
+import { requireViewer } from "@/server/auth";
+import { householdRecipes } from "@/server/data";
+import { RecipeLibrary } from "./RecipeLibrary";
+
+export default async function RecipesPage() {
+  const viewer = await requireViewer();
+  const recipes = await householdRecipes(viewer.household.id);
+  const add = (
+    <Link href="/recipes/new" className="inline-flex h-10 items-center gap-1.5 rounded-full bg-brand px-4 text-sm font-medium text-brand-ink">
+      <Icon name="plus" className="size-4" /> Add
+    </Link>
+  );
+  return (
+    <>
+      <PageHeader title="Recipes" subtitle={`${recipes.length} saved`} action={add} />
+      {recipes.length ? (
+        <RecipeLibrary
+          recipes={recipes.map((r) => ({
+            id: r.id,
+            title: r.title,
+            imageUrl: recipeImageSrc(r),
+            tags: r.tags,
+            mealTypes: r.mealTypes.length ? r.mealTypes : inferMealTypes(r),
+            totalMinutes: r.totalMinutes,
+            isFavorite: r.isFavorite,
+            isStaple: r.isStaple,
+            needsIngredients: r.ingredients.length === 0,
+            lastPlannedOn: r.lastPlannedOn,
+          }))}
+        />
+      ) : (
+        <EmptyState icon="book" title="Your recipe box is empty">
+          <p className="max-w-sm text-sm text-muted">Import from Pinterest boards, recipe websites, photos of recipe cards, or type them in.</p>
+          <Link href="/recipes/new" className="mt-2 inline-flex h-11 items-center gap-2 rounded-full bg-brand px-5 font-medium text-brand-ink">
+            <Icon name="plus" /> Add recipes
+          </Link>
+        </EmptyState>
+      )}
+    </>
+  );
+}

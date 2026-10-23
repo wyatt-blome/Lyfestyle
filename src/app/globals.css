@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-fraunces), Georgia, serif;
+}
+
+:root {
+  --bg: #f7f4ee;
+  --surface: #ffffff;
+  --surface-2: #f0ebe1;
+  --ink: #1f2a24;
+  --muted: #6a736d;
+  --line: #e3ddd1;
+  --brand: #2f6b4f;
+  --brand-ink: #ffffff;
+  --brand-soft: #e2efe7;
+  --accent: #c2622d;
+  --accent-soft: #f8e6da;
+  --warn: #9a6a00;
+  --warn-soft: #fbf0d0;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141815;
+    --surface: #1d2320;
+    --surface-2: #252c28;
+    --ink: #eef1ec;
+    --muted: #9ba49e;
+    --line: #313a35;
+    --brand: #6fbf94;
+    --brand-ink: #0f1a14;
+    --brand-soft: #22382b;
+    --accent: #e58b57;
+    --accent-soft: #3b2a20;
+    --warn: #e2b54a;
+    --warn-soft: #3a3220;
+    color-scheme: dark;
+  }
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.font-display {
+  font-family: var(--font-fraunces), Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+/* Keep content clear of the bottom tab bar and the phone's home indicator. */
+.pb-tabs {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
