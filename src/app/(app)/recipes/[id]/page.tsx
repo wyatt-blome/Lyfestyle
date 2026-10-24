@@ -87,6 +87,11 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
       >
         <Icon name="clock" /> Start cooking
       </Link>
+      {pages.length > 1 ? (
+        <Link href={`/recipes/${r.id}/split`} className="flex items-center gap-2 self-start text-sm font-medium text-brand">
+          <Icon name="board" className="size-4" /> {pages.length} photos saved here. Several recipes? Split pages
+        </Link>
+      ) : null}
       {aiAvailable() && r.readWith !== "claude" && (pages.length || r.imageUrl?.startsWith("data:")) ? <ReadWithClaudeButton id={r.id} /> : null}
       <RequestMealButton
         recipes={[]}

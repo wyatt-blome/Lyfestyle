@@ -375,6 +375,42 @@ export async function readRecipeWithClaude(id: string): Promise<Result<{ title: 
   }
 }
 
+/**
+ * Split a recipe whose photos are really several recipes. `starts` are the page positions where
+ * a new recipe begins. The mixed-up text is cleared so each recipe can be read again (or typed).
+ */
+export async function splitRecipe(id: string, starts: number[]): Promise<Result<{ ids: string[] }>> {
+  const { viewer, db, recipe } = await ownRecipe(id);
+  if (!recipe) return { ok: false, error: "Recipe not found." };
+  const pages = await db
+    .select({ id: schema.recipePhotos.id })
+    .from(schema.recipePhotos)
+    .where(eq(schema.recipePhotos.recipeId, id))
+    .orderBy(asc(schema.recipePhotos.position));
+  const cuts = [...new Set(starts.filter((n) => Number.isInteger(n) && n > 0 && n < pages.length))].sort((a, b) => a - b);
+  if (!cuts.length) return { ok: false, error: "Mark where a new recipe starts." };
+  const bounds = [0, ...cuts, pages.length];
+  const ids = [id];
+  for (let g = 1; g < bounds.length - 1; g++) {
+    const [created] = await db
+      .insert(schema.recipes)
+      .values({ householdId: viewer.household.id, title: "Untitled recipe", sourceType: "photo", createdBy: viewer.user.name })
+      .returning({ id: schema.recipes.id });
+    ids.push(created.id);
+    const moved = pages.slice(bounds[g], bounds[g + 1]);
+    for (const [position, p] of moved.entries()) {
+      await db.update(schema.recipePhotos).set({ recipeId: created.id, position }).where(eq(schema.recipePhotos.id, p.id));
+    }
+  }
+  // The first recipe keeps its first pages; its text mixed several recipes, so it's cleared too.
+  await db
+    .update(schema.recipes)
+    .set({ ingredients: [], steps: [], readWith: null, title: recipe.titleByHand ? recipe.title : "Untitled recipe", imageUrl: null, servings: null, prepMinutes: null, cookMinutes: null, totalMinutes: null })
+    .where(eq(schema.recipes.id, id));
+  revalidatePath("/recipes");
+  return { ok: true, value: { ids } };
+}
+
 export async function setRating(id: string, rating: number | null) {
   const { db, recipe } = await ownRecipe(id);
   if (!recipe) return;

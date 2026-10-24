@@ -97,11 +97,14 @@ export function readPageText(text: string): RecipePart[] {
     const startMode = title ? "intro" : STARTS_WITH_AMOUNT.test(firstMeaningful) && !startsWithStep ? "ing" : !body.some((l) => ING_HEAD.test(l)) ? "step" : "intro";
     const sections = parseSections(body.filter((l) => !CONTINUED.test(l)), startMode);
     const last = seg[seg.length - 1] ?? "";
-    const continuesFromPrevious =
-      k === 0 && !title && (CONTINUED.test(seg.slice(0, 2).join(" ")) || startsWithStep || !hasRecipeNearTop || sections.ingredients.length === 0);
+    // Only clear evidence joins pages: a missing name alone is common on screenshots and cards.
+    const continuesFromPrevious = k === 0 && !title && (CONTINUED.test(seg.slice(0, 2).join(" ")) || startsWithStep);
+    // Runs on: says so, has ingredients but no method yet, or stops mid-sentence ("pour in").
     const continuesOnNext =
       k === starts.length - 1 &&
-      (CONTINUED.test(seg.slice(-2).join(" ")) || (sections.ingredients.length > 0 && sections.steps.length === 0) || (sections.steps.length > 0 && !/[.!?)]$/.test(last)));
+      (CONTINUED.test(seg.slice(-2).join(" ")) ||
+        (sections.ingredients.length > 0 && sections.steps.length === 0) ||
+        (sections.steps.length > 0 && /[,;–-]$|\b(?:and|or|the|a|an|to|with|of|in|into|until|for|on|then)$/i.test(last)));
     return {
       title,
       continuesFromPrevious,
@@ -147,18 +150,26 @@ export function unreadablePart(): RecipePart {
 }
 
 /** Where each recipe starts: true at index i means part i begins a new recipe. */
+/** Recipes this long are rare; a run longer than this is almost always separate recipes. */
+export const MAX_PAGES_PER_RECIPE = 4;
+
 export function defaultBreaks(parts: PagePart[]): boolean[] {
+  let pagesInGroup = new Set<number>();
   return parts.map((part, i) => {
-    if (i === 0) return true;
-    const prev = parts[i - 1];
-    // Unreadable pages can't say whether they continue; the household joins them if needed.
-    if (part.unreadable || prev.unreadable) return true;
-    if (part.continuesFromPrevious) return false;
-    // No name found but a recipe of its own: only joins a page that said it carries on.
-    if (!part.title) return !prev.continuesOnNext;
-    // The previous page says it carries on, and this one has no ingredients of its own.
-    if (prev.continuesOnNext && part.ingredients.length === 0) return false;
-    return true;
+    const start = (() => {
+      if (i === 0) return true;
+      const prev = parts[i - 1];
+      // Unreadable pages can't say whether they continue; the household joins them if needed.
+      if (part.unreadable || prev.unreadable) return true;
+      if (!pagesInGroup.has(part.page) && pagesInGroup.size >= MAX_PAGES_PER_RECIPE) return true;
+      if (part.continuesFromPrevious) return false;
+      // The previous page said it carries on, and this one picks up mid-list or mid-method.
+      if (prev.continuesOnNext && !part.title && !part.description && (part.ingredients.length > 0 || part.steps.length > 0)) return false;
+      return true;
+    })();
+    if (start) pagesInGroup = new Set();
+    pagesInGroup.add(part.page);
+    return start;
   });
 }
 

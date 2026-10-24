@@ -15,8 +15,6 @@ interface Photo {
   id: string;
   file: File;
   thumb: string;
-  /** readable copy of the page, kept with the recipe */
-  page: string;
   status: "waiting" | "reading" | "done" | "error";
   progress: number;
   parts: RecipePart[];
@@ -24,6 +22,9 @@ interface Photo {
 }
 
 type Reader = "device" | "claude";
+
+/** Photos per batch: more than this and phone browsers can run out of memory partway. */
+const MAX_BATCH = 40;
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -84,14 +85,22 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
   const [savingAll, setSavingAll] = useState(false);
   // Names typed on the review screen, by group.
   const [titles, setTitles] = useState<Record<number, string>>({});
+  const [editingPages, setEditingPages] = useState<string[]>([]);
   // Which reader read the photos that are being reviewed.
   const [readBy, setReadBy] = useState<"phone" | "claude">("phone");
 
   const update = (id: string, patch: Partial<Photo>) => setPhotos((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
 
+  // Readable copies of a recipe's pages, made only when saving so big batches don't fill memory.
+  const pageCopies = (group: PageGroup) => Promise.all(group.pages.map((pg) => downscale(photos[pg].file, 1400, 0.7)));
+
   const add = async (files: FileList | null) => {
     if (!files?.length) return;
     setError(undefined);
+    if (photos.length + files.length > MAX_BATCH) {
+      setError(`Add up to ${MAX_BATCH} photos at a time. Phones run out of memory on bigger batches; save these, then add the next ones.`);
+      return;
+    }
     const added: Photo[] = [];
     for (const file of Array.from(files)) {
       try {
@@ -99,7 +108,6 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
           id: crypto.randomUUID(),
           file,
           thumb: await downscale(file, 480, 0.75),
-          page: await downscale(file, 1400, 0.7),
           status: "waiting",
           progress: 0,
           parts: [],
@@ -135,6 +143,13 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
 
   const readAll = async () => {
     setStage("reading");
+    // Keep the phone awake: a sleeping screen pauses the reading.
+    let lock: WakeLockSentinel | null = null;
+    try {
+      lock = "wakeLock" in navigator ? await navigator.wakeLock.request("screen") : null;
+    } catch {
+      lock = null;
+    }
     setReadBy(reader === "claude" ? "claude" : "phone");
     setError(undefined);
     const queue = photos.filter((p) => p.status !== "done");
@@ -162,6 +177,7 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
     setSaved({});
     setTitles({});
     setStage("review");
+    void lock?.release().catch(() => undefined);
   };
 
   const parts: PagePart[] = useMemo(() => photos.flatMap((p, page) => p.parts.map((part) => ({ ...part, page }))), [photos]);
@@ -183,7 +199,7 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
       const res = await saveRecipe(
         { ...toEditor({ ...group.recipe, title: titles[g]?.trim() || group.recipe.title || "Untitled recipe" }, photos[group.pages[0]]?.thumb ?? null, readBy), mealTypes: [] },
         undefined,
-        group.pages.map((pg) => photos[pg].page),
+        await pageCopies(group),
       );
       if (res.ok) setSaved((s) => ({ ...s, [g]: res.value.id }));
       else setError(`“${group.recipe.title}”: ${res.error}`);
@@ -206,7 +222,7 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
         </div>
         <RecipeEditor
           initial={toEditor({ ...group.recipe, title: titles[editing]?.trim() || group.recipe.title }, photos[group.pages[0]]?.thumb ?? null, readBy)}
-          photos={group.pages.map((pg) => photos[pg].page)}
+          photos={editingPages}
           notice="Read from your photos. Check the amounts before saving."
           onSaved={(id) => {
             setSaved((s) => ({ ...s, [editing]: id }));
@@ -307,7 +323,15 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
                 </div>
                 <div className="flex flex-wrap items-center gap-1 border-t border-line px-2 py-1.5">
                   {!saved[g] ? (
-                    <Button size="sm" variant="ghost" className="text-brand" onClick={() => setEditing(g)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-brand"
+                      onClick={async () => {
+                        setEditingPages(await pageCopies(group));
+                        setEditing(g);
+                      }}
+                    >
                       <Icon name="edit" className="size-4" /> Review & save
                     </Button>
                   ) : null}
@@ -355,7 +379,7 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
       <div>
         <h2 className="font-display text-xl font-semibold">Photos of recipe cards or cookbook pages</h2>
         <p className="mt-1 text-sm text-muted">
-          Add as many as you like. For a recipe that runs over several pages, add its pages in order; the app works out which pages go together.
+          Add up to 40 at a time, in page order. Each photo becomes its own recipe unless a page clearly continues the one before; you can join or split them before saving.
         </p>
       </div>
       {readerChoice}

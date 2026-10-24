@@ -17,6 +17,8 @@ export interface CategoryRecipe extends MatchableRecipe {
   minutes: number | null;
   needsIngredients: boolean;
   needsName: boolean;
+  /** original page photos saved with it */
+  photoCount?: number;
 }
 
 const has = (words: string[]) => (_: CategoryRecipe, text: string) => words.some((w) => new RegExp(`\\b${w}(?:e?s)?\\b`).test(text));
@@ -62,6 +64,7 @@ export const CATEGORIES: Category[] = [
   { id: "southern", label: "Southern & Cajun", group: "Cuisine", test: mood("southern") },
   { id: "fix-ingredients", label: "Needs ingredients", group: "Other", test: (r) => r.needsIngredients },
   { id: "fix-name", label: "Needs a name", group: "Other", test: (r) => r.needsName },
+  { id: "multi-page", label: "Saved with several photos", group: "Other", test: (r) => (r.photoCount ?? 0) > 1 },
 ];
 
 /** Every category a recipe belongs to. */

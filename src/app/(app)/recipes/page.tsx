@@ -1,4 +1,6 @@
+import { count } from "drizzle-orm";
 import Link from "next/link";
+import { getDb, schema } from "@/db";
 import { Icon } from "@/components/icons";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/ui";
@@ -14,6 +16,16 @@ export default async function RecipesPage() {
   const viewer = await requireViewer();
   const recipes = await householdRecipes(viewer.household.id);
   const needNames = recipes.filter((r) => looksLikeBadTitle(r.title)).length;
+  const db = await getDb();
+  const photoCounts = new Map(
+    (
+      await db
+        .select({ recipeId: schema.recipePhotos.recipeId, n: count() })
+        .from(schema.recipePhotos)
+        .groupBy(schema.recipePhotos.recipeId)
+    ).map((r) => [r.recipeId, Number(r.n)]),
+  );
+  const multiPage = [...photoCounts.values()].filter((n) => n > 1).length;
   const add = (
     <Link href="/recipes/new" className="inline-flex h-10 items-center gap-1.5 rounded-full bg-brand px-4 text-sm font-medium text-brand-ink">
       <Icon name="plus" className="size-4" /> Add
@@ -26,6 +38,12 @@ export default async function RecipesPage() {
         <Link href="/recipes/names" className="-mt-2 mb-3 flex items-center gap-1.5 self-start text-sm font-medium text-brand">
           <Icon name="edit" className="size-4" /> Rename recipes from photos
         </Link>
+      ) : null}
+      {multiPage ? (
+        <p className="mb-3 rounded-2xl border border-line bg-surface p-3 text-sm">
+          <strong>{multiPage} recipe{multiPage === 1 ? " was" : "s were"} saved with several photos</strong>, and may really be several recipes. Pick{" "}
+          <em>Saved with several photos</em> in the category menu, open one, and tap <em>Split pages</em>.
+        </p>
       ) : null}
       {needNames ? (
         <Link href="/recipes/names" className="mb-4 flex items-center gap-3 rounded-2xl border border-warn/30 bg-warn-soft p-3 text-sm">
@@ -59,6 +77,7 @@ export default async function RecipesPage() {
                 totalMinutes: time?.total ?? null,
                 needsIngredients: r.ingredients.length === 0,
                 needsName: looksLikeBadTitle(r.title),
+                photoCount: photoCounts.get(r.id) ?? 0,
               }),
             };
           })}

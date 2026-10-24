@@ -111,6 +111,23 @@ describe("grouping pages", () => {
   });
 });
 
+describe("long runs of pages", () => {
+  it("keeps screenshots without a found name as separate recipes", () => {
+    const shot = (n: number) => readPageText(`Prep Time 10 minutes\nServes 4\n1 cup rice\n2 cups water ${n}\nCook the rice ${n}.`);
+    const parts = flat(Array.from({ length: 8 }, (_, i) => shot(i)));
+    expect(buildGroups(parts, defaultBreaks(parts))).toHaveLength(8);
+  });
+
+  it("never makes a recipe longer than four pages", () => {
+    const first = readPageText(`Big Feast\nIngredients\n1 turkey\nDirections\n1. Start the turkey and`);
+    const more = Array.from({ length: 6 }, () => readPageText(`keep going with the next part and`));
+    const parts = flat([first, ...more]);
+    const groups = buildGroups(parts, defaultBreaks(parts));
+    expect(groups[0].pages).toHaveLength(4);
+    expect(groups.length).toBeGreaterThan(1);
+  });
+});
+
 describe("parseRecipeText wrapped lines", () => {
   it("joins steps wrapped by the page", () => {
     const r = parseRecipeText(`Soup\nIngredients\n1 onion\nDirections\n1. Cook the onion until soft and\ngolden.\n2. Serve.`);
