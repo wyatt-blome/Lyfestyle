@@ -9,16 +9,17 @@ import { buildGroups, type PagePart, type RecipePart } from "@/lib/import/pages"
 import { looksLikeBadTitle } from "@/lib/import/title";
 import { readPageOnce } from "@/server/photos";
 import { FetchError } from "@/lib/import/fetch";
-import { importFromUrl, listBoardPins, type ImportResult } from "@/lib/import/importUrl";
+import { BoardLinkError, importFromUrl, listBoardPins, type ImportResult } from "@/lib/import/importUrl";
 import type { ImportedRecipe } from "@/lib/import/types";
 import { tidyTitle } from "@/lib/ingredients/names";
 import { inferMealTypes } from "@/lib/moods";
 import { requireViewer } from "@/server/auth";
 import { currentWeekStart } from "@/server/data";
 
-type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+type Result<T> = { ok: true; value: T } | { ok: false; error: string; board?: string };
 
-function failure(e: unknown): { ok: false; error: string } {
+function failure(e: unknown): { ok: false; error: string; board?: string } {
+  if (e instanceof BoardLinkError) return { ok: false, error: e.message, board: e.boardUrl };
   if (e instanceof FetchError || e instanceof AiError) return { ok: false, error: e.message };
   console.error(e);
   return { ok: false, error: "Something went wrong. Try again." };
@@ -144,7 +145,7 @@ export async function photoImportAvailable(): Promise<boolean> {
   return aiAvailable();
 }
 
-export async function boardPins(url: string): Promise<Result<{ url: string; title: string }[]>> {
+export async function boardPins(url: string): Promise<Result<{ board: boolean; pins: { url: string; title: string }[] }>> {
   await requireViewer();
   try {
     return { ok: true, value: await listBoardPins(url) };

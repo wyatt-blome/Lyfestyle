@@ -37,8 +37,21 @@ export function classifyPinterestUrl(input: string): PinterestLink | null {
   return null;
 }
 
+function slug(part: string): string {
+  try {
+    return encodeURIComponent(decodeURIComponent(part));
+  } catch {
+    return encodeURIComponent(part);
+  }
+}
+
 export function boardRssUrl(user: string, board: string): string {
-  return `https://www.pinterest.com/${encodeURIComponent(user)}/${encodeURIComponent(board)}.rss`;
+  return `https://www.pinterest.com/${slug(user)}/${slug(board)}.rss`;
+}
+
+/** The board's own page, without the share-tracking query ("?invite_code=…"). */
+export function boardPageUrl(user: string, board: string, section: string | null): string {
+  return `https://www.pinterest.com/${slug(user)}/${slug(board)}/${section ? `${slug(section)}/` : ""}`;
 }
 
 /** Pin links from a board's RSS feed (Pinterest only lists the most recent pins there). */
@@ -53,6 +66,25 @@ export function parseBoardRss(xml: string): { url: string; title: string }[] {
     if (link) out.push({ url: decodeEntities(link[1].trim()), title: title ? cleanText(title[1]) : "" });
   }
   return out;
+}
+
+/** Pins listed in a board page's inline data, for when the board's feed isn't available. */
+export function parseBoardPage(html: string): { url: string; title: string }[] {
+  const seen = new Map<string, string>();
+  for (const data of embeddedJson(html)) {
+    walk(data, (o) => {
+      const id = String(o.id ?? "");
+      if (o.type === "pin" && /^\d{6,}$/.test(id) && !seen.has(id)) {
+        const title = [o.title, o.grid_title, o.description].find((t) => typeof t === "string" && t.trim());
+        seen.set(id, typeof title === "string" ? cleanText(title) : "");
+      }
+      return false;
+    });
+  }
+  if (!seen.size) {
+    for (const m of html.matchAll(/href="\/pin\/(\d{6,})\/?"/g)) if (!seen.has(m[1])) seen.set(m[1], "");
+  }
+  return [...seen].map(([id, title]) => ({ url: `https://www.pinterest.com/pin/${id}/`, title }));
 }
 
 function isExternal(url: string): boolean {

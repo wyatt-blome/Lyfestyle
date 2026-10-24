@@ -61,6 +61,8 @@ const blank: ImportedRecipe = {
 export function AddRecipe({ aiEnabled, initialTab }: { aiEnabled: boolean; initialTab?: string }) {
   const [tab, setTab] = useState<Tab>((TABS.find((t) => t.id === initialTab)?.id ?? "link") as Tab);
   const [draft, setDraft] = useState<{ value: EditorValue; notice: string | null; key: number } | null>(null);
+  // A board pasted into "Link or pin" moves over to "Many at once".
+  const [boardLink, setBoardLink] = useState<string | null>(null);
   const edit = (value: EditorValue, notice: string | null = null) => setDraft({ value, notice, key: Date.now() });
 
   return (
@@ -95,9 +97,15 @@ export function AddRecipe({ aiEnabled, initialTab }: { aiEnabled: boolean; initi
           <RecipeEditor key={draft.key} initial={draft.value} notice={draft.notice} />
         </>
       ) : tab === "link" ? (
-        <LinkImport onDone={edit} />
+        <LinkImport
+          onDone={edit}
+          onBoard={(url) => {
+            setBoardLink(url);
+            setTab("bulk");
+          }}
+        />
       ) : tab === "bulk" ? (
-        <BulkImport />
+        <BulkImport key={boardLink ?? ""} initial={boardLink ?? ""} />
       ) : tab === "photo" ? (
         <PhotoImport aiEnabled={aiEnabled} onUseText={() => setTab("text")} />
       ) : tab === "text" ? (
@@ -109,7 +117,7 @@ export function AddRecipe({ aiEnabled, initialTab }: { aiEnabled: boolean; initi
   );
 }
 
-function LinkImport({ onDone }: { onDone: (v: EditorValue, notice?: string | null) => void }) {
+function LinkImport({ onDone, onBoard }: { onDone: (v: EditorValue, notice?: string | null) => void; onBoard: (url: string) => void }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
@@ -117,12 +125,9 @@ function LinkImport({ onDone }: { onDone: (v: EditorValue, notice?: string | nul
     start(async () => {
       setError(undefined);
       const kind = classifyPinterestUrl(url);
-      if (kind?.kind === "board" || kind?.kind === "profile") {
-        setError("That's a whole board. Use the “Many at once” tab to import its pins.");
-        return;
-      }
+      if (kind?.kind === "board") return onBoard(url.trim());
       const res = await importLink(url);
-      if (!res.ok) return setError(res.error);
+      if (!res.ok) return res.board ? onBoard(url.trim()) : setError(res.error);
       const { recipe, pinterestUrl, message } = res.value;
       onDone(toEditor(recipe, pinterestUrl ? "pinterest" : "link", pinterestUrl), message);
     });
@@ -153,8 +158,8 @@ function LinkImport({ onDone }: { onDone: (v: EditorValue, notice?: string | nul
 
 type BulkRow = { url: string; title: string; state: "waiting" | "working" | "done" | "partial" | "duplicate" | "error"; message?: string; id?: string };
 
-function BulkImport() {
-  const [input, setInput] = useState("");
+function BulkImport({ initial = "" }: { initial?: string }) {
+  const [input, setInput] = useState(initial);
   const [rows, setRows] = useState<BulkRow[] | null>(null);
   const [error, setError] = useState<string>();
   const [running, setRunning] = useState(false);
@@ -169,11 +174,12 @@ function BulkImport() {
         .map((s) => s.trim())
         .filter((s) => /^https?:\/\//i.test(s));
       if (!lines.length) return setError("Paste a Pinterest board link, or several recipe or pin links.");
-      const board = lines.length === 1 ? classifyPinterestUrl(lines[0]) : null;
-      if (board?.kind === "board") {
-        const res = await boardPins(lines[0]);
-        if (!res.ok) return setError(res.error);
-        setRows(res.value.map((p) => ({ url: p.url, title: p.title || p.url, state: "waiting" })));
+      // One Pinterest link may be a board, including the pin.it link the app's Share button copies.
+      const kind = lines.length === 1 ? classifyPinterestUrl(lines[0])?.kind : null;
+      const res = kind === "board" || kind === "short" || kind === "profile" ? await boardPins(lines[0]) : null;
+      if (res && !res.ok) return setError(res.error);
+      if (res?.ok && res.value.board) {
+        setRows(res.value.pins.map((p) => ({ url: p.url, title: p.title || p.url, state: "waiting" })));
       } else {
         setRows([...new Set(lines)].map((u) => ({ url: u, title: u, state: "waiting" })));
       }
@@ -208,7 +214,8 @@ function BulkImport() {
       <div>
         <h2 className="font-display text-xl font-semibold">Bring in a lot at once</h2>
         <p className="mt-1 text-sm text-muted">
-          Paste a <strong>Pinterest board</strong> link (pinterest.com/you/board-name), or paste many recipe or pin links, one per line.
+          Paste a <strong>Pinterest board</strong> link, or many recipe or pin links, one per line. To copy a board&apos;s link in the Pinterest app, open the board,
+          tap <strong>Share</strong>, then <strong>Copy link</strong>.
         </p>
         <p className="mt-1 text-xs text-muted">Pinterest only shares a board&apos;s most recent pins (about 25). For bigger boards, paste pin links in batches.</p>
       </div>
@@ -216,6 +223,7 @@ function BulkImport() {
         <>
           <FileImport />
           <textarea value={input} onChange={(e) => setInput(e.target.value)} rows={6} placeholder={"https://www.pinterest.com/you/dinner-ideas/\n\nor\n\nhttps://pin.it/abc\nhttps://www.allrecipes.com/recipe/…"} className={textareaClass} />
+          {initial && input === initial && !error ? <p className="text-sm text-brand">That link is a whole board. Tap Find recipes to list its pins.</p> : null}
           <ErrorText>{error}</ErrorText>
           <Button variant="primary" size="lg" busy={pending} onClick={load} disabled={!input.trim()}>
             Find recipes

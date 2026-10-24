@@ -17,6 +17,19 @@ const pages: Record<string, { status?: number; body: string; location?: string }
   "https://www.pinterest.com/pin/555555555555/": {
     body: `<meta property="og:title" content="Cookies | Pinterest"><meta property="og:image" content="https://i.pinimg.com/x.jpg">`,
   },
+  "https://pin.it/board1": { status: 302, body: "", location: "https://www.pinterest.com/jane/dinner/?invite_code=abc&sender=1" },
+  "https://pin.it/blocked": { status: 302, body: "", location: "https://www.pinterest.com/sam/sweets/?invite_code=z" },
+  "https://www.pinterest.com/sam/sweets/?invite_code=z": {
+    body: `<script id="__PWS_DATA__" type="application/json">${JSON.stringify({
+      board: { id: "999999999", type: "board", name: "Sweets" },
+      feed: [
+        { id: "700000000001", type: "pin", grid_title: "Brownies" },
+        { id: "700000000002", type: "pin", title: "", description: "Lemon bars" },
+        { id: "700000000001", type: "pin", grid_title: "Brownies" },
+      ],
+    })}</script>`,
+  },
+  "https://pin.it/profile": { status: 302, body: "", location: "https://www.pinterest.com/jane/" },
   "https://www.pinterest.com/jane/dinner.rss": {
     body: `<rss><channel><item><title>A</title><link>https://www.pinterest.com/pin/1/</link></item></channel></rss>`,
   },
@@ -60,6 +73,35 @@ describe("importFromUrl", () => {
 
   it("lists a board's pins", async () => {
     const { listBoardPins } = await import("@/lib/import/importUrl");
-    expect(await listBoardPins("https://www.pinterest.com/jane/dinner/")).toEqual([{ url: "https://www.pinterest.com/pin/1/", title: "A" }]);
+    expect(await listBoardPins("https://www.pinterest.com/jane/dinner/")).toEqual({ board: true, pins: [{ url: "https://www.pinterest.com/pin/1/", title: "A" }] });
+  });
+
+  it("follows the pin.it link the Pinterest app shares for a board", async () => {
+    const { listBoardPins } = await import("@/lib/import/importUrl");
+    expect(await listBoardPins("https://pin.it/board1")).toEqual({ board: true, pins: [{ url: "https://www.pinterest.com/pin/1/", title: "A" }] });
+  });
+
+  it("reads pins from the board page when the board has no feed", async () => {
+    const { listBoardPins } = await import("@/lib/import/importUrl");
+    expect(await listBoardPins("https://pin.it/blocked")).toEqual({
+      board: true,
+      pins: [
+        { url: "https://www.pinterest.com/pin/700000000001/", title: "Brownies" },
+        { url: "https://www.pinterest.com/pin/700000000002/", title: "Lemon bars" },
+      ],
+    });
+  });
+
+  it("says when a pin.it link is a single pin or a profile", async () => {
+    const { listBoardPins } = await import("@/lib/import/importUrl");
+    expect(await listBoardPins("https://pin.it/abc")).toEqual({ board: false, pins: [] });
+    await expect(listBoardPins("https://pin.it/profile")).rejects.toThrow(/profile/);
+  });
+
+  it("points a board link pasted as one recipe to the board importer", async () => {
+    const { importFromUrl, BoardLinkError } = await import("@/lib/import/importUrl");
+    const err = await importFromUrl("https://pin.it/board1").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(BoardLinkError);
+    expect((err as InstanceType<typeof BoardLinkError>).boardUrl).toBe("https://www.pinterest.com/jane/dinner/?invite_code=abc&sender=1");
   });
 });

@@ -3,8 +3,15 @@ import { tidyTitle } from "../ingredients/names";
 import { aiAvailable, extractRecipeFromImage } from "./ai";
 import { FetchError, safeFetch } from "./fetch";
 import { extractRecipeFromHtml, pageSummary } from "./jsonld";
-import { boardRssUrl, classifyPinterestUrl, parseBoardRss, readPinPage } from "./pinterest";
+import { boardPageUrl, boardRssUrl, classifyPinterestUrl, parseBoardPage, parseBoardRss, readPinPage } from "./pinterest";
 import { emptyRecipe, type ImportedRecipe } from "./types";
+
+/** The link was a whole board; `boardUrl` is where it leads. */
+export class BoardLinkError extends FetchError {
+  constructor(readonly boardUrl: string) {
+    super("That's a whole board, not one recipe. Use “Many at once” to bring in its pins.");
+  }
+}
 
 export interface ImportResult {
   recipe: ImportedRecipe;
@@ -40,9 +47,8 @@ export async function importFromUrl(input: string): Promise<ImportResult> {
     }
   }
 
-  if (pin?.kind === "board" || pin?.kind === "profile") {
-    throw new FetchError("That's a board link. Use “Import a whole board” to bring in its pins.");
-  }
+  if (pin?.kind === "board") throw new BoardLinkError(target);
+  if (pin?.kind === "profile") throw new FetchError(PROFILE_MESSAGE);
 
   if (pin?.kind === "pin") {
     const page = await safeFetch(pin.url);
@@ -107,13 +113,32 @@ export async function importFromUrl(input: string): Promise<ImportResult> {
   };
 }
 
-/** Pin links on a public board, newest first. Pinterest's feed only lists recent pins. */
-export async function listBoardPins(input: string): Promise<{ url: string; title: string }[]> {
-  const link = classifyPinterestUrl(input);
-  if (!link || link.kind !== "board") throw new FetchError("Paste a board link like pinterest.com/yourname/dinner-ideas.");
-  const feed = await safeFetch(boardRssUrl(link.user, link.board), { accept: "application/rss+xml,application/xml,text/xml" });
-  if (feed.status >= 400) throw new FetchError("Pinterest didn't return that board. Make sure it's public (secret boards can't be read).");
-  const pins = parseBoardRss(feed.text);
-  if (!pins.length) throw new FetchError("No pins found on that board.");
-  return pins;
+const PROFILE_MESSAGE = "That link is a whole profile. Open one board in Pinterest, tap Share, then Copy link.";
+
+/**
+ * Pin links on a public board, newest first. Takes a board link or the pin.it link the Pinterest
+ * app shares; `board` is false when the link turns out to be something else (a pin or a website).
+ * Pinterest's feed only lists a board's recent pins.
+ */
+export async function listBoardPins(input: string): Promise<{ board: boolean; pins: { url: string; title: string }[] }> {
+  let link = classifyPinterestUrl(input);
+  let page: Awaited<ReturnType<typeof safeFetch>> | null = null;
+  if (link?.kind === "short") {
+    page = await safeFetch(input);
+    link = classifyPinterestUrl(page.url);
+  }
+  if (link?.kind === "profile") throw new FetchError(PROFILE_MESSAGE);
+  if (link?.kind !== "board") return { board: false, pins: [] };
+
+  // Sections have no feed of their own; their page lists the pins.
+  if (!link.section) {
+    const feed = await safeFetch(boardRssUrl(link.user, link.board), { accept: "application/rss+xml,application/xml,text/xml" }).catch(() => null);
+    const pins = feed && feed.status < 400 ? parseBoardRss(feed.text) : [];
+    if (pins.length) return { board: true, pins };
+  }
+  if (!page || page.status >= 400) page = await safeFetch(boardPageUrl(link.user, link.board, link.section));
+  if (page.status >= 400) throw new FetchError("Pinterest didn't return that board. Make sure it's public (secret boards can't be read).");
+  const pins = parseBoardPage(page.text);
+  if (!pins.length) throw new FetchError("Pinterest didn't list any pins for that board. Make sure it's public, or paste pin links instead.");
+  return { board: true, pins };
 }
