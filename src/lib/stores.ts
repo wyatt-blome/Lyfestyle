@@ -47,11 +47,14 @@ export function walmartCartUrl(items: { itemId: string; quantity: number }[]): s
   return `https://affil.walmart.com/cart/addToCart?items=${encodeURIComponent(list)}`;
 }
 
-/** How many packages a buy text asks for: "2 × 15 oz can" → 2, "16 oz tub" → 1. */
+/** How many packages a buy text asks for: "2 × 15 oz can" → 2, "3 limes" → 3, "16 oz tub" → 1. */
 export function packageCount(buyText: string | null): number {
   if (!buyText) return 1;
   return buyText.split(" + ").reduce((n, part) => {
-    const m = part.match(/^(\d+)\s*×/);
-    return n + (m ? Number(m[1]) : 1);
+    const times = part.match(/^(\d+)\s*×/);
+    if (times) return n + Number(times[1]);
+    // "2 limes", "3 bunches": a count of single items, not a size like "3 lb bag" or "2 dozen".
+    const pieces = part.match(/^(\d+) (?!(?:lb|oz|fl|gal|gallon|quart|pint|ct|count|pack|dozen|l|ml|g|kg)\b)[a-z]/i);
+    return n + (pieces ? Number(pieces[1]) : 1);
   }, 0);
 }

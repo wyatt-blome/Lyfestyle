@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui";
 import { formatWeek, isIsoDate, weekStartFor } from "@/lib/dates";
 import { sortLines } from "@/lib/ingredients/grocery";
 import type { Aisle } from "@/lib/ingredients/catalog";
+import { walmartLookupAvailable } from "@/lib/walmart";
 import { requireViewer } from "@/server/auth";
 import { currentWeekStart, getPlan } from "@/server/data";
 import { ListView } from "./ListView";
@@ -68,6 +69,7 @@ export default async function ListPage({ searchParams }: { searchParams: Promise
           updatedBy: i.updatedBy,
         }))}
         products={products.map((p) => ({ store: p.store, key: p.key, productUrl: p.productUrl, itemId: p.itemId }))}
+        walmartLookup={walmartLookupAvailable()}
       />
     </>
   );

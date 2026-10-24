@@ -64,12 +64,24 @@ There is no sign-in: everyone who opens the link shares the same household, reci
 | --- | --- | --- |
 | `DATABASE_URL` | for deployment | Postgres connection string |
 | `ANTHROPIC_API_KEY` | optional | Claude reads photos (better with handwriting) and image-only Pinterest pins. Without it, photos are read on the phone. |
+| `WALMART_CONSUMER_ID`, `WALMART_PRIVATE_KEY`, `WALMART_KEY_VERSION` | optional | The app finds the Walmart product for each item, so **Add to Walmart cart** puts the whole order in the cart in one tap (see below). |
+
+### One-tap Walmart orders (optional, free)
+
+Walmart's add-to-cart link needs Walmart's own product number for each item. The app learns them two ways: you paste a product's link once (it's remembered), or the app looks them up through Walmart's free developer service:
+
+1. Sign up at **https://walmart.io** and create an application for the **Affiliate (product) API**.
+2. Make a key pair on any computer: `openssl genrsa -out walmart.pem 2048`, then `openssl rsa -in walmart.pem -pubout -out walmart.pub`. Upload `walmart.pub` to your walmart.io application.
+3. walmart.io shows a **Consumer ID** and **key version**. In Vercel, add `WALMART_CONSUMER_ID`, `WALMART_KEY_VERSION`, and `WALMART_PRIVATE_KEY` (the whole contents of `walmart.pem`), then redeploy.
+4. On the Order screen, tap **Find products** once. After that, **Add to Walmart cart** adds everything with one tap; you pick the pickup time and check out in Walmart.
+
+Sam's Club offers nothing similar to outside apps, so Sam's orders use the guided one-at-a-time run.
 
 ## Limits worth knowing
 
 - **Pinterest boards:** Pinterest's public board feed only lists a board's most recent pins (about 25), and secret boards can't be read. For big boards, paste pin links in batches using **Many at once**. Pins whose site doesn't publish recipe data come in as drafts marked *Needs ingredients*.
 - **Pinterest blocking:** Pinterest occasionally blocks automated requests. If a pin fails, open it, tap through to the recipe site, and import that link instead.
-- **Walmart and Sam's Club** have no public API for building someone's pickup cart. The app opens each item in their app or site, where your account, pickup store and substitutions already live. The one-tap "add saved products to Walmart cart" uses Walmart's add-to-cart link; if Walmart changes it, the per-item links still work.
+- **Walmart and Sam's Club** don't let outside apps fill your cart directly. **Add to cart** puts every Walmart item whose product is known into the cart with one tap (Walmart's add-to-cart link), and walks through the rest one at a time, opening each in the store's app. Checkout and the pickup time happen in the store's app. The Walmart lookup and add-to-cart link haven't been tested against live Walmart yet; if Walmart changes them, the one-at-a-time run still works.
 
 ## Development
 

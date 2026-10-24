@@ -1,3 +1,4 @@
+import { tidyTitle } from "../ingredients/names";
 import { cleanLine } from "../ingredients/parse";
 import { emptyRecipe, parseDuration, type ImportedRecipe } from "./types";
 
@@ -121,6 +122,6 @@ export function textLines(text: string): string[] {
 export function parseRecipeText(text: string): ImportedRecipe {
   const lines = textLines(text);
   if (!lines.length) return emptyRecipe();
-  const title = lines[0].replace(/^#+\s*/, "").slice(0, 120);
+  const title = tidyTitle(lines[0].replace(/^#+\s*/, "")).slice(0, 120);
   return emptyRecipe({ title, ...parseSections(lines.slice(1)) });
 }

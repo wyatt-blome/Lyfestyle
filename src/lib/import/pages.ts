@@ -1,4 +1,5 @@
 import { ING_HEAD, parseSections, STARTS_WITH_AMOUNT, STEP_HEAD, textLines } from "./text";
+import { tidyTitle } from "../ingredients/names";
 import { emptyRecipe, type ImportedRecipe } from "./types";
 
 // Photos of recipes come in as pages: one card, or a recipe spread over two or three cookbook
@@ -158,7 +159,7 @@ export function buildGroups(parts: PagePart[], breaks: boolean[]): PageGroup[] {
     r.tags = [...new Set([...r.tags, ...part.tags])];
   });
   for (const g of groups) {
-    if (!g.recipe.title) g.recipe.title = "Untitled recipe";
+    g.recipe.title = g.recipe.title ? tidyTitle(g.recipe.title) : "Untitled recipe";
     if (g.recipe.prepMinutes || g.recipe.cookMinutes) g.recipe.totalMinutes = (g.recipe.prepMinutes ?? 0) + (g.recipe.cookMinutes ?? 0);
   }
   return groups;

@@ -1,4 +1,5 @@
 import "server-only";
+import { tidyTitle } from "../ingredients/names";
 import { aiAvailable, extractRecipeFromImage } from "./ai";
 import { FetchError, safeFetch } from "./fetch";
 import { extractRecipeFromHtml, pageSummary } from "./jsonld";
@@ -78,7 +79,7 @@ export async function importFromUrl(input: string): Promise<ImportResult> {
 
     return {
       recipe: emptyRecipe({
-        title: info.title ?? "Pinned recipe",
+        title: info.title ? tidyTitle(info.title) : "Pinned recipe",
         description: info.description,
         imageUrl: info.imageUrl,
         sourceUrl: info.link,
@@ -95,7 +96,7 @@ export async function importFromUrl(input: string): Promise<ImportResult> {
   if (site.recipe) return { recipe: site.recipe, status: "complete", pinterestUrl: null, message: null };
   return {
     recipe: emptyRecipe({
-      title: site.summary?.title ?? "New recipe",
+      title: site.summary?.title ? tidyTitle(site.summary.title) : "New recipe",
       description: site.summary?.description ?? null,
       imageUrl: site.summary?.imageUrl ?? null,
       sourceUrl: site.finalUrl,

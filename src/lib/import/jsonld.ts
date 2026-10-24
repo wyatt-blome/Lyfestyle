@@ -1,3 +1,4 @@
+import { tidyTitle } from "../ingredients/names";
 import { cleanText, emptyRecipe, parseDuration, parseYield, type ImportedRecipe } from "./types";
 
 type Json = unknown;
@@ -115,7 +116,7 @@ function recipeFromNode(r: Record<string, Json>, url: string | null): ImportedRe
     .map((x) => x.trim())
     .filter(Boolean);
   return emptyRecipe({
-    title: cleanText(r.name ?? r.headline) || "Untitled recipe",
+    title: tidyTitle(cleanText(r.name ?? r.headline)) || "Untitled recipe",
     description: cleanText(r.description) || null,
     imageUrl: imageOf(r.image ?? r.thumbnailUrl),
     sourceUrl: url,

@@ -287,6 +287,14 @@ function leftoverText(base: Base, amount: number, item: CatalogItem): string {
   return baseText(base, amount, item);
 }
 
+/** "2 × 1 lime" reads as "2 limes"; other packages keep "2 × 15 oz can". */
+function buyLabel(label: string, count: number, item: CatalogItem): string {
+  if (count === 1) return label;
+  const single = label.match(/^1 (.+)$/);
+  if (single && item.eachLabel && (single[1] === item.eachLabel[0] || single[1] === "bunch")) return `${count} ${item.eachLabel[1]}`;
+  return `${count} × ${label}`;
+}
+
 export function finalize(need: Need, store: Store, pantryKeys: Set<string>): GroceryLine {
   const item = need.item;
   const pantry = Boolean(item?.pantry) || pantryKeys.has(need.key);
@@ -310,7 +318,7 @@ export function finalize(need: Need, store: Store, pantryKeys: Set<string>): Gro
     const choice = amount > 0 ? choosePackages(amount, pkgs) : null;
     if (choice) {
       buy = choice.picks.map((p) => ({ label: p.pkg.label, count: p.count }));
-      buyText = buy.map((b) => (b.count > 1 ? `${b.count} × ${b.label}` : b.label)).join(" + ");
+      buyText = buy.map((b) => buyLabel(b.label, b.count, item)).join(" + ");
       const left = Math.max(0, choice.total - need.amount);
       // Sealed units in a multi-pack keep; only the opened one is at risk.
       const sealed = choice.picks.find((p) => p.pkg.units && p.pkg.units > 1);

@@ -2,6 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
+import { tidyTitle } from "../ingredients/names";
 import type { RecipePart } from "./pages";
 import { emptyRecipe, type ImportedRecipe } from "./types";
 
@@ -70,7 +71,7 @@ export async function extractRecipeFromImage(image: ImageInput, hint?: string): 
   const out = response.parsed_output;
   if (!out || !out.found || !out.ingredients.length) throw new AiError("No recipe found in that image.");
   return emptyRecipe({
-    title: out.title || "Untitled recipe",
+    title: tidyTitle(out.title) || "Untitled recipe",
     description: out.description,
     servings: out.servings,
     prepMinutes: out.prepMinutes,

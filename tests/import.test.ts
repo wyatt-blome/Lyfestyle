@@ -113,5 +113,9 @@ describe("helpers", () => {
     expect(parseProductUrl("sams", "https://www.samsclub.com/p/members-mark-eggs/prod20595288")?.itemId).toBe("prod20595288");
     expect(walmartCartUrl([{ itemId: "10450114", quantity: 2 }])).toBe("https://affil.walmart.com/cart/addToCart?items=10450114%7C2");
     expect(packageCount("2 × 15 oz can + 8 oz can")).toBe(3);
+    expect(packageCount("3 limes")).toBe(3);
+    expect(packageCount("3 lb bag (about 6)")).toBe(1);
+    expect(packageCount("2 dozen")).toBe(1);
+    expect(packageCount("1 bunch")).toBe(1);
   });
 });

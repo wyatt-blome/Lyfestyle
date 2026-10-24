@@ -1,4 +1,5 @@
 import { CATALOG, type CatalogItem, type Aisle } from "./catalog";
+import { sentenceCase } from "./names";
 
 // Words that describe how an ingredient is prepared or sized, not what to buy.
 const DESCRIPTORS = new Set([
@@ -201,10 +202,6 @@ function guessAisle(words: string): Aisle {
   return "Other";
 }
 
-function titleCase(s: string): string {
-  return s.replace(/\b[a-z]/g, (c) => c.toUpperCase());
-}
-
 const identifyCache = new Map<string, IngredientIdentity>();
 
 /** Map an ingredient name from a recipe to the item you would put on a grocery list. */
@@ -232,9 +229,15 @@ function identifyUncached(name: string): IngredientIdentity {
   }
   const words = meaningful.length ? meaningful : all;
   const joined = words.join(" ");
+  // Shown as the recipe wrote it (plurals and all), minus prep words: "fresh tarragon leaves,
+  // chopped" → "Tarragon leaves".
+  const original = basicNormalize(name)
+    .split(" ")
+    .filter((w) => w && !/^\d/.test(w) && !DESCRIPTORS.has(singularize(w.replace(/^-+|-+$/g, ""))))
+    .join(" ");
   return {
     key: `x:${joined || basicNormalize(name)}`,
-    name: titleCase(joined || name.trim()),
+    name: sentenceCase(original || joined || name.trim()),
     aisle: guessAisle(joined),
   };
 }

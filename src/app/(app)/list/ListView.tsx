@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useOptimistic, useState, useTransition } from "react";
-import { addItem, forgetProduct, rememberProduct, removeItem, setAlwaysHave, setInCart, setItemStatus } from "@/actions/list";
+import { useEffect, useOptimistic, useState, useTransition } from "react";
+import { addItem, forgetProduct, matchWalmartProducts, rememberProduct, removeItem, setAlwaysHave, setInCart, setItemStatus, updateItems } from "@/actions/list";
 import { setStore } from "@/actions/household";
 import { Icon } from "@/components/icons";
 import { Button, Card, cx, ErrorText, inputClass, Sheet } from "@/components/ui";
@@ -36,20 +36,35 @@ interface Product {
   itemId: string | null;
 }
 
-type Patch = { id: string; status?: "have" | "need"; inCart?: boolean; removed?: boolean };
+type Patch = { ids: string[]; status?: "have" | "need"; inCart?: boolean; removed?: boolean };
 
 const STORE_NAME: Record<Store, string> = { walmart: "Walmart", sams: "Sam's Club" };
 
-export function ListView({ planId, store: initialStore, items, products }: { planId: string; store: Store; items: ListItem[]; products: Product[] }) {
+export function ListView({
+  planId,
+  store: initialStore,
+  items,
+  products,
+  walmartLookup,
+}: {
+  planId: string;
+  store: Store;
+  items: ListItem[];
+  products: Product[];
+  /** walmart.io keys are set, so products can be found automatically */
+  walmartLookup: boolean;
+}) {
   const router = useRouter();
   const [tab, setTab] = useState<"have" | "order">("have");
   const [store, setStoreState] = useState<Store>(initialStore);
   const [detail, setDetail] = useState<ListItem | null>(null);
   const [error, setError] = useState<string>();
   const [, start] = useTransition();
-  const [view, apply] = useOptimistic(items, (state, p: Patch) =>
-    p.removed ? state.filter((i) => i.id !== p.id) : state.map((i) => (i.id === p.id ? { ...i, ...p } : i)),
-  );
+  const [view, apply] = useOptimistic(items, (state, { ids, removed, ...change }: Patch) => {
+    const hit = new Set(ids);
+    if (removed) return state.filter((i) => !hit.has(i.id));
+    return state.map((i) => (hit.has(i.id) ? { ...i, ...change, ...(change.status === "have" ? { inCart: false } : {}) } : i));
+  });
 
   // The list is shared: pick up changes other household members make.
   useEffect(() => {
@@ -97,7 +112,8 @@ export function ListView({ planId, store: initialStore, items, products }: { pla
         <HaveStep
           items={view}
           have={have.length}
-          onToggle={(i) => patch({ id: i.id, status: i.status === "have" ? "need" : "have" }, () => setItemStatus(i.id, i.status === "have" ? "need" : "have"))}
+          onToggle={(i) => patch({ ids: [i.id], status: i.status === "have" ? "need" : "have" }, () => setItemStatus(i.id, i.status === "have" ? "need" : "have"))}
+          onSetAll={(ids, status) => patch({ ids, status }, () => updateItems(planId, ids, { status }))}
           onDetail={setDetail}
           onAdd={(text) =>
             start(async () => {
@@ -119,7 +135,21 @@ export function ListView({ planId, store: initialStore, items, products }: { pla
               await setStore(s);
             });
           }}
-          onCart={(i) => patch({ id: i.id, inCart: !i.inCart }, () => setInCart(i.id, !i.inCart))}
+          onCart={(i) => patch({ ids: [i.id], inCart: !i.inCart }, () => setInCart(i.id, !i.inCart))}
+          onCartMany={(ids) => patch({ ids, inCart: true }, () => updateItems(planId, ids, { inCart: true }))}
+          walmartLookup={walmartLookup}
+          onMatch={async () => {
+            const res = await matchWalmartProducts(planId);
+            router.refresh();
+            return res;
+          }}
+          onRemember={(i, url) =>
+            start(async () => {
+              const res = await rememberProduct(store, i.key, url);
+              if (!res.ok) setError(res.error);
+              router.refresh();
+            })
+          }
           onDetail={setDetail}
         />
       )}
@@ -132,11 +162,11 @@ export function ListView({ planId, store: initialStore, items, products }: { pla
         onClose={() => setDetail(null)}
         onAlwaysHave={(i, v) => {
           setDetail(null);
-          patch({ id: i.id, status: v ? "have" : i.status }, () => setAlwaysHave(i.id, v));
+          patch({ ids: [i.id], status: v ? "have" : i.status }, () => setAlwaysHave(i.id, v));
         }}
         onRemove={(i) => {
           setDetail(null);
-          patch({ id: i.id, removed: true }, () => removeItem(i.id));
+          patch({ ids: [i.id], removed: true }, () => removeItem(i.id));
         }}
         onRemember={(i, url) =>
           start(async () => {
@@ -167,6 +197,7 @@ function HaveStep({
   items,
   have,
   onToggle,
+  onSetAll,
   onDetail,
   onAdd,
   onNext,
@@ -174,6 +205,7 @@ function HaveStep({
   items: ListItem[];
   have: number;
   onToggle: (i: ListItem) => void;
+  onSetAll: (ids: string[], status: "have" | "need") => void;
   onDetail: (i: ListItem) => void;
   onAdd: (text: string) => void;
   onNext: () => void;
@@ -200,6 +232,13 @@ function HaveStep({
           <Icon name="plus" />
         </Button>
       </form>
+      {regular.length ? (
+        <SelectAll
+          label="We have all of these"
+          checked={regular.every((i) => i.status === "have")}
+          onChange={(all) => onSetAll(regular.map((i) => i.id), all ? "have" : "need")}
+        />
+      ) : null}
       {groupByAisle(regular).map(([aisle, list]) => (
         <section key={aisle}>
           <h3 className="mb-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted">{aisle}</h3>
@@ -259,38 +298,69 @@ function HaveRow({ item, onToggle, onDetail }: { item: ListItem; onToggle: (i: L
   );
 }
 
+function SelectAll({ label, checked, onChange }: { label: string; checked: boolean; onChange: (all: boolean) => void }) {
+  return (
+    <button type="button" role="checkbox" aria-checked={checked} onClick={() => onChange(!checked)} className="flex items-center gap-3 px-3 text-sm font-medium">
+      <span className={cx("grid size-7 shrink-0 place-items-center rounded-lg border-2", checked ? "border-brand bg-brand text-brand-ink" : "border-line bg-surface")}>
+        {checked ? <Icon name="check" className="size-4" /> : null}
+      </span>
+      {checked ? "Clear all" : label}
+    </button>
+  );
+}
+
+const CART_URL: Record<Store, string> = { walmart: "https://www.walmart.com/cart", sams: "https://www.samsclub.com/cart" };
+
 function OrderStep({
   store,
   items,
   productFor,
+  walmartLookup,
   onStore,
   onCart,
+  onCartMany,
+  onMatch,
+  onRemember,
   onDetail,
 }: {
   store: Store;
   items: ListItem[];
   productFor: (key: string) => Product | undefined;
+  walmartLookup: boolean;
   onStore: (s: Store) => void;
   onCart: (i: ListItem) => void;
+  onCartMany: (ids: string[]) => void;
+  onMatch: () => Promise<{ ok: true; value: { matched: number; missed: string[] } } | { ok: false; error: string }>;
+  onRemember: (i: ListItem, url: string) => void;
   onDetail: (i: ListItem) => void;
 }) {
   const [copied, setCopied] = useState(false);
+  // Everything not yet in the cart starts selected.
+  const [unselected, setUnselected] = useState<Set<string>>(new Set());
+  const [run, setRun] = useState<ListItem[] | null>(null);
+  const [matching, setMatching] = useState(false);
+  const [matchNote, setMatchNote] = useState<string>();
   const buy = (i: ListItem) => (store === "walmart" ? i.buyWalmart : i.buySams);
   const leftover = (i: ListItem) => (store === "walmart" ? i.leftoverWalmart : i.leftoverSams);
-  const inCart = items.filter((i) => i.inCart).length;
+  const open = items.filter((i) => !i.inCart);
+  const inCart = items.length - open.length;
+  const selected = open.filter((i) => !unselected.has(i.id));
+  const allSelected = open.length > 0 && selected.length === open.length;
 
-  const cartLink = useMemo(() => {
-    if (store !== "walmart") return null;
-    const withIds = items
-      .filter((i) => !i.inCart)
-      .map((i) => ({ p: productFor(i.key), i }))
-      .filter((x) => x.p?.itemId);
-    const url = walmartCartUrl(withIds.map((x) => ({ itemId: x.p!.itemId!, quantity: packageCount(buy(x.i)) })));
-    return url ? { url, count: withIds.length } : null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, store, productFor]);
+  // Walmart: everything with a known product goes in with one link; the rest are added one by one.
+  const oneTap = store === "walmart" ? selected.filter((i) => productFor(i.key)?.itemId) : [];
+  const oneTapUrl = walmartCartUrl(oneTap.map((i) => ({ itemId: productFor(i.key)!.itemId!, quantity: packageCount(buy(i)) })));
+  const byHand = selected.filter((i) => !oneTap.includes(i));
+  const unmatched = store === "walmart" && walmartLookup ? open.filter((i) => !productFor(i.key)?.itemId).length : 0;
 
-  const spoilers = items.filter((i) => (leftover(i)?.waste ?? 0) >= 0.2);
+  const findProducts = async () => {
+    setMatching(true);
+    setMatchNote(undefined);
+    const res = await onMatch();
+    setMatching(false);
+    if (!res.ok) setMatchNote(res.error);
+    else if (res.value.missed.length) setMatchNote(`Couldn't find ${res.value.missed.join(", ")} at Walmart; those are added one at a time.`);
+  };
 
   const copyList = async () => {
     const text = groupByAisle(items)
@@ -318,6 +388,8 @@ function OrderStep({
     );
   }
 
+  const spoilers = items.filter((i) => (leftover(i)?.waste ?? 0) >= 0.2);
+
   return (
     <>
       <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Store">
@@ -335,27 +407,25 @@ function OrderStep({
         ))}
       </div>
 
-      <Card className="p-4 text-sm">
-        <p className="font-semibold">How pickup ordering works</p>
-        <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-muted">
-          <li>Tap each item to open it in the {STORE_NAME[store]} app or site and add it to your cart.</li>
-          <li>Check it off here as it goes in the cart.</li>
-          <li>In {STORE_NAME[store]}, check out and choose a pickup time.</li>
-        </ol>
-        <p className="mt-2 text-xs text-muted">Pick a product once and save its link (tap the arrow on an item); next week it opens that exact product{store === "walmart" ? ", and saved products can go in your cart in one tap" : ""}.</p>
-      </Card>
-
-      {cartLink ? (
-        <a href={cartLink.url} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center gap-2 rounded-full bg-brand font-medium text-brand-ink">
-          <Icon name="cart" /> Add {cartLink.count} saved product{cartLink.count === 1 ? "" : "s"} to Walmart cart
-        </a>
+      {unmatched > 0 ? (
+        <Card className="flex items-center gap-3 p-3 text-sm">
+          <span className="min-w-0 flex-1 text-muted">
+            {matching ? "Finding Walmart products…" : `${unmatched} item${unmatched === 1 ? "" : "s"} not matched to a Walmart product yet.`}
+          </span>
+          <Button size="sm" busy={matching} onClick={findProducts}>
+            Find products
+          </Button>
+        </Card>
       ) : null}
+      {matchNote ? <p className="rounded-xl bg-warn-soft px-3 py-2 text-sm">{matchNote}</p> : null}
 
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-muted">
-          {inCart} of {items.length} in cart
-        </span>
-        <button type="button" onClick={copyList} className="flex items-center gap-1.5 font-medium text-brand">
+      <div className="flex items-center justify-between">
+        {open.length ? (
+          <SelectAll label={`Select all (${open.length})`} checked={allSelected} onChange={(all) => setUnselected(all ? new Set() : new Set(open.map((i) => i.id)))} />
+        ) : (
+          <span className="px-1 text-sm font-medium text-brand">Everything is in the cart</span>
+        )}
+        <button type="button" onClick={copyList} className="flex items-center gap-1.5 text-sm font-medium text-brand">
           <Icon name="copy" className="size-4" /> {copied ? "Copied" : "Share list"}
         </button>
       </div>
@@ -368,28 +438,44 @@ function OrderStep({
               const product = productFor(i.key);
               const href = product?.productUrl ?? searchUrl(store, searchQuery(i.name, buy(i), store));
               const left = leftover(i);
+              const isSelected = !i.inCart && !unselected.has(i.id);
               return (
-                <div key={i.id} className="flex items-center gap-3 px-3 py-2.5">
-                  <button
-                    type="button"
-                    role="checkbox"
-                    aria-checked={i.inCart}
-                    aria-label={`${i.name}: in cart`}
-                    onClick={() => onCart(i)}
-                    className={cx("grid size-7 shrink-0 place-items-center rounded-lg border-2", i.inCart ? "border-brand bg-brand text-brand-ink" : "border-line")}
-                  >
-                    {i.inCart ? <Icon name="check" className="size-4" /> : null}
-                  </button>
+                <div key={i.id} className={cx("flex items-center gap-3 px-3 py-2.5", i.inCart && "bg-surface-2/50")}>
+                  {i.inCart ? (
+                    <button
+                      type="button"
+                      onClick={() => onCart(i)}
+                      aria-label={`${i.name} is in the cart. Tap to undo.`}
+                      className="grid size-7 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand"
+                    >
+                      <Icon name="cart" className="size-4" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={isSelected}
+                      aria-label={`Order ${i.name}`}
+                      onClick={() =>
+                        setUnselected((u) => {
+                          const next = new Set(u);
+                          if (next.has(i.id)) next.delete(i.id);
+                          else next.add(i.id);
+                          return next;
+                        })
+                      }
+                      className={cx("grid size-7 shrink-0 place-items-center rounded-lg border-2", isSelected ? "border-brand bg-brand text-brand-ink" : "border-line")}
+                    >
+                      {isSelected ? <Icon name="check" className="size-4" /> : null}
+                    </button>
+                  )}
                   <a href={href} target="_blank" rel="noreferrer" className="min-w-0 flex-1">
-                    <span className={cx("flex items-center gap-1.5 font-medium leading-snug", i.inCart && "text-muted line-through")}>
+                    <span className={cx("flex items-center gap-1.5 font-medium leading-snug", i.inCart && "text-muted")}>
                       {i.name}
                       {product ? <Icon name="pin" className="size-3.5 shrink-0 text-brand" /> : null}
                     </span>
-                    <span className="block text-xs text-muted">{buy(i) || i.needText || "Add to cart"}</span>
-                    {left && left.waste >= 0.2 ? <span className="block text-xs text-warn">About {left.text} will be left over</span> : null}
-                  </a>
-                  <a href={href} target="_blank" rel="noreferrer" aria-label={`Open ${i.name} at ${STORE_NAME[store]}`} className="grid size-9 place-items-center rounded-full text-brand hover:bg-brand-soft">
-                    <Icon name="external" className="size-4" />
+                    <span className="block text-xs text-muted">{i.inCart ? "In cart" : buy(i) || i.needText || "Add to cart"}</span>
+                    {!i.inCart && left && left.waste >= 0.2 ? <span className="block text-xs text-warn">About {left.text} will be left over</span> : null}
                   </a>
                   <button type="button" onClick={() => onDetail(i)} aria-label={`Details for ${i.name}`} className="grid size-9 place-items-center rounded-full text-muted hover:bg-surface-2">
                     <Icon name="chevronRight" className="size-4" />
@@ -416,7 +502,161 @@ function OrderStep({
           <p className="mt-2 text-xs text-muted">Next week&apos;s plan will suggest meals that use these.</p>
         </Card>
       ) : null}
+
+      <div className="safe-bottom sticky bottom-16 z-10 -mx-4 flex flex-col gap-2 border-t border-line bg-bg/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+        {selected.length ? (
+          oneTapUrl ? (
+            <a
+              href={oneTapUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => {
+                onCartMany(oneTap.map((i) => i.id));
+                if (byHand.length) setRun(byHand);
+              }}
+              className="flex h-12 items-center justify-center gap-2 rounded-full bg-brand font-medium text-brand-ink"
+            >
+              <Icon name="cart" /> Add {selected.length} to {STORE_NAME[store]} cart
+            </a>
+          ) : (
+            <Button variant="primary" size="lg" onClick={() => setRun(byHand)}>
+              <Icon name="cart" /> Add {selected.length} to {STORE_NAME[store]} cart
+            </Button>
+          )
+        ) : (
+          <a href={CART_URL[store]} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center gap-2 rounded-full bg-brand font-medium text-brand-ink">
+            <Icon name="external" /> Open {STORE_NAME[store]} cart to check out
+          </a>
+        )}
+        {selected.length && byHand.length ? (
+          <p className="text-center text-xs text-muted">
+            {oneTap.length ? `${oneTap.length} go in with one tap; ` : ""}
+            {byHand.length} {byHand.length === 1 ? "is" : "are"} added one at a time{store === "walmart" ? " until their products are saved" : ""}.
+          </p>
+        ) : inCart ? (
+          <p className="text-center text-xs text-muted">{inCart} in cart. Check out in {STORE_NAME[store]} and pick a pickup time.</p>
+        ) : null}
+      </div>
+
+      <CartRun
+        store={store}
+        queue={run}
+        productFor={productFor}
+        buy={buy}
+        onAdded={(i) => onCartMany([i.id])}
+        onRemember={onRemember}
+        onClose={() => setRun(null)}
+      />
     </>
+  );
+}
+
+/** Adding items the store can't take in one go: one item at a time, opening each in the store's app. */
+function CartRun({
+  store,
+  queue,
+  productFor,
+  buy,
+  onAdded,
+  onRemember,
+  onClose,
+}: {
+  store: Store;
+  queue: ListItem[] | null;
+  productFor: (key: string) => Product | undefined;
+  buy: (i: ListItem) => string | null;
+  onAdded: (i: ListItem) => void;
+  onRemember: (i: ListItem, url: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet open={Boolean(queue)} onClose={onClose} title={`Add to ${STORE_NAME[store]} cart`}>
+      {queue ? <CartRunBody key={queue.map((i) => i.id).join()} {...{ store, queue, productFor, buy, onAdded, onRemember, onClose }} /> : null}
+    </Sheet>
+  );
+}
+
+function CartRunBody({
+  store,
+  queue,
+  productFor,
+  buy,
+  onAdded,
+  onRemember,
+  onClose,
+}: {
+  store: Store;
+  queue: ListItem[];
+  productFor: (key: string) => Product | undefined;
+  buy: (i: ListItem) => string | null;
+  onAdded: (i: ListItem) => void;
+  onRemember: (i: ListItem, url: string) => void;
+  onClose: () => void;
+}) {
+  const [index, setIndex] = useState(0);
+  const [url, setUrl] = useState("");
+  const item = queue[index];
+
+  if (!item) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-4 text-center">
+        <Icon name="check" className="size-10 text-brand" />
+        <p className="font-display text-xl font-semibold">All added</p>
+        <p className="text-sm text-muted">Now check out in {STORE_NAME[store]} and choose a pickup time.</p>
+        <a href={CART_URL[store]} target="_blank" rel="noreferrer" className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-brand font-medium text-brand-ink">
+          <Icon name="external" /> Open {STORE_NAME[store]} cart
+        </a>
+        <Button variant="ghost" onClick={onClose}>
+          Done
+        </Button>
+      </div>
+    );
+  }
+
+  const product = productFor(item.key);
+  const href = product?.productUrl ?? searchUrl(store, searchQuery(item.name, buy(item), store));
+  const next = () => {
+    setUrl("");
+    setIndex((n) => n + 1);
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden>
+        <div className="h-full bg-brand transition-all" style={{ width: `${(index / queue.length) * 100}%` }} />
+      </div>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted">
+        Item {index + 1} of {queue.length}
+      </p>
+      <div>
+        <p className="font-display text-2xl font-semibold">{item.name}</p>
+        <p className="text-muted">{buy(item) || item.needText}</p>
+      </div>
+      <a href={href} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center gap-2 rounded-full border border-brand font-medium text-brand">
+        <Icon name="external" /> {product ? `Open it in ${STORE_NAME[store]}` : `Find it in ${STORE_NAME[store]}`}
+      </a>
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="ghost" onClick={next}>
+          Skip
+        </Button>
+        <Button
+          variant="primary"
+          onClick={() => {
+            if (url.trim()) onRemember(item, url.trim());
+            onAdded(item);
+            next();
+          }}
+        >
+          <Icon name="check" /> Added
+        </Button>
+      </div>
+      {!product ? (
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          Optional: paste the product&apos;s link ({STORE_NAME[store]} → Share → Copy link) so next week it&apos;s {store === "walmart" ? "added with one tap" : "opened directly"}.
+          <input value={url} onChange={(e) => setUrl(e.target.value)} inputMode="url" placeholder={store === "walmart" ? "https://www.walmart.com/ip/…" : "https://www.samsclub.com/p/…"} className={inputClass} />
+        </label>
+      ) : null}
+    </div>
   );
 }
 

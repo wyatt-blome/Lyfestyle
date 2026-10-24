@@ -9,6 +9,7 @@ import type { RecipePart } from "@/lib/import/pages";
 import { FetchError } from "@/lib/import/fetch";
 import { importFromUrl, listBoardPins, type ImportResult } from "@/lib/import/importUrl";
 import type { ImportedRecipe } from "@/lib/import/types";
+import { tidyTitle } from "@/lib/ingredients/names";
 import { inferMealTypes } from "@/lib/moods";
 import { requireViewer } from "@/server/auth";
 import { currentWeekStart } from "@/server/data";
@@ -107,7 +108,7 @@ export async function importRecipeFile(json: string): Promise<Result<{ added: nu
       continue;
     }
     const saved = await saveRecipe({
-      title: r.title,
+      title: tidyTitle(r.title),
       description: r.description ?? null,
       servings: r.servings ?? null,
       prepMinutes: r.prepMinutes ?? null,
