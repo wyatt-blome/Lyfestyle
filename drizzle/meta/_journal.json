@@ -43,6 +43,13 @@
       "when": 1792803348100,
       "tag": "0005_title_by_hand",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792804224032,
+      "tag": "0006_imported_photos",
+      "breakpoints": true
     }
   ]
 }

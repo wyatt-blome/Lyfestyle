@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, eq, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, notInArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, schema } from "@/db";
@@ -202,7 +202,7 @@ function clean(input: z.output<typeof RecipeInput>) {
 const Photos = z.array(z.string().max(1_600_000).regex(/^data:image\/(jpeg|png|webp);base64,/)).max(8);
 
 /** Save a recipe. `photos` (new recipes only) are the original pages it was read from. */
-export async function saveRecipe(input: RecipeInput, id?: string, photos: string[] = []): Promise<Result<{ id: string }>> {
+export async function saveRecipe(input: RecipeInput, id?: string, photos: string[] = [], photoHashes: string[] = []): Promise<Result<{ id: string }>> {
   const viewer = await requireViewer();
   const parsed = RecipeInput.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the recipe." };
@@ -227,8 +227,72 @@ export async function saveRecipe(input: RecipeInput, id?: string, photos: string
   if (pages.success && pages.data.length) {
     await db.insert(schema.recipePhotos).values(pages.data.map((data, position) => ({ recipeId: row.id, position, data })));
   }
+  // Remember the photos as imported, so picking the same album again skips them.
+  const hashes = photoHashes.filter((h) => /^[a-f0-9]{64}$/.test(h)).slice(0, 8);
+  if (hashes.length) {
+    await db
+      .insert(schema.importedPhotos)
+      .values(hashes.map((hash) => ({ householdId: viewer.household.id, hash, recipeId: row.id })))
+      .onConflictDoNothing();
+  }
   revalidatePath("/recipes");
   return { ok: true, value: row };
+}
+
+/** Which of these photo fingerprints have been imported before. */
+export async function alreadyImported(hashes: string[]): Promise<string[]> {
+  const viewer = await requireViewer();
+  const valid = hashes.filter((h) => /^[a-f0-9]{64}$/.test(h)).slice(0, 2000);
+  if (!valid.length) return [];
+  const db = await getDb();
+  const rows = await db
+    .select({ hash: schema.importedPhotos.hash })
+    .from(schema.importedPhotos)
+    .where(and(eq(schema.importedPhotos.householdId, viewer.household.id), inArray(schema.importedPhotos.hash, valid)));
+  return rows.map((r) => r.hash);
+}
+
+/**
+ * Start over: delete every recipe in the household, with their photos and requests, and forget
+ * which photos were imported so they can be imported again. Claude's saved readings are kept, so
+ * re-importing the same photos costs nothing.
+ */
+export async function deleteAllRecipes(confirm: string): Promise<Result<{ deleted: number }>> {
+  const viewer = await requireViewer();
+  if (confirm.trim().toUpperCase() !== "DELETE") return { ok: false, error: "Type DELETE to confirm." };
+  const db = await getDb();
+  const rows = await db.delete(schema.recipes).where(eq(schema.recipes.householdId, viewer.household.id)).returning({ id: schema.recipes.id });
+  await db.delete(schema.importedPhotos).where(eq(schema.importedPhotos.householdId, viewer.household.id));
+  revalidatePath("/", "layout");
+  return { ok: true, value: { deleted: rows.length } };
+}
+
+/** Photo recipes saved before photos were tracked (the ones the old importer grouped wrongly). */
+async function untrackedPhotoRecipes(householdId: string) {
+  const db = await getDb();
+  const tracked = db
+    .select({ id: schema.importedPhotos.recipeId })
+    .from(schema.importedPhotos)
+    .where(and(eq(schema.importedPhotos.householdId, householdId), isNotNull(schema.importedPhotos.recipeId)));
+  return db
+    .select({ id: schema.recipes.id })
+    .from(schema.recipes)
+    .where(and(eq(schema.recipes.householdId, householdId), eq(schema.recipes.sourceType, "photo"), notInArray(schema.recipes.id, tracked)));
+}
+
+export async function countOldPhotoImports(): Promise<number> {
+  const viewer = await requireViewer();
+  return (await untrackedPhotoRecipes(viewer.household.id)).length;
+}
+
+export async function deleteOldPhotoImports(): Promise<Result<{ deleted: number }>> {
+  const viewer = await requireViewer();
+  const old = await untrackedPhotoRecipes(viewer.household.id);
+  if (!old.length) return { ok: true, value: { deleted: 0 } };
+  const db = await getDb();
+  await db.delete(schema.recipes).where(inArray(schema.recipes.id, old.map((r) => r.id)));
+  revalidatePath("/recipes");
+  return { ok: true, value: { deleted: old.length } };
 }
 
 /** Bulk import: fetch one link and save it straight away. Skips links already in the library. */

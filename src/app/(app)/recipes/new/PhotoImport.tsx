@@ -10,6 +10,7 @@ import { looksLikeBadTitle } from "@/lib/import/title";
 import { buildGroups, defaultBreaks, readPageText, textQuality, unreadablePart, type PageGroup, type PagePart, type RecipePart } from "@/lib/import/pages";
 import type { ImportedRecipe } from "@/lib/import/types";
 import { readPhotoText } from "@/lib/ocr/reader";
+import { AlbumImport } from "./AlbumImport";
 
 interface Photo {
   id: string;
@@ -86,6 +87,7 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
   // Names typed on the review screen, by group.
   const [titles, setTitles] = useState<Record<number, string>>({});
   const [editingPages, setEditingPages] = useState<string[]>([]);
+  const [album, setAlbum] = useState<File[] | null>(null);
   // Which reader read the photos that are being reviewed.
   const [readBy, setReadBy] = useState<"phone" | "claude">("phone");
 
@@ -97,8 +99,10 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
   const add = async (files: FileList | null) => {
     if (!files?.length) return;
     setError(undefined);
+    // Lots of photos: read and save them one by one instead of holding them for review.
     if (photos.length + files.length > MAX_BATCH) {
-      setError(`Add up to ${MAX_BATCH} photos at a time. Phones run out of memory on bigger batches; save these, then add the next ones.`);
+      setAlbum([...photos.map((p) => p.file), ...Array.from(files)]);
+      setPhotos([]);
       return;
     }
     const added: Photo[] = [];
@@ -206,6 +210,8 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
     }
     setSavingAll(false);
   };
+
+  if (album) return <AlbumImport files={album} reader={reader} onCancel={() => setAlbum(null)} />;
 
   if (editing !== null && groups[editing]) {
     const group = groups[editing];
@@ -379,7 +385,7 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
       <div>
         <h2 className="font-display text-xl font-semibold">Photos of recipe cards or cookbook pages</h2>
         <p className="mt-1 text-sm text-muted">
-          Add up to 40 at a time, in page order. Each photo becomes its own recipe unless a page clearly continues the one before; you can join or split them before saving.
+          Pick photos in page order. Each photo becomes its own recipe unless a page clearly continues the one before. Up to 40 you can check before saving; pick more (a whole album is fine) and each recipe is saved as soon as it&apos;s read, and photos already imported are skipped.
         </p>
       </div>
       {readerChoice}

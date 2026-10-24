@@ -210,6 +210,20 @@ export const photoReads = pgTable(
   (t) => [uniqueIndex("photo_reads_idx").on(t.householdId, t.hash)],
 );
 
+/** Every photo already imported (by fingerprint), so re-picking an album skips what's done. */
+export const importedPhotos = pgTable(
+  "imported_photos",
+  {
+    householdId: text("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    hash: text("hash").notNull(),
+    recipeId: text("recipe_id").references(() => recipes.id, { onDelete: "set null" }),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex("imported_photos_idx").on(t.householdId, t.hash)],
+);
+
 /** "Can we have …?" A household member asks for a recipe, or describes an idea. */
 export const mealRequests = pgTable(
   "meal_requests",
