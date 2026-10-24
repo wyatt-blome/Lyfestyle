@@ -280,6 +280,25 @@ async function ownRecipe(id: string) {
   return { viewer, db, recipe: r ?? null };
 }
 
+/** Rename several recipes at once (the "Name these recipes" screen). */
+export async function renameRecipes(changes: { id: string; title: string }[]): Promise<Result<{ renamed: number }>> {
+  const viewer = await requireViewer();
+  const parsed = z.array(z.object({ id: z.string().max(64), title: z.string().trim().min(1).max(200) })).max(1000).safeParse(changes);
+  if (!parsed.success) return { ok: false, error: "Every recipe needs a name." };
+  const db = await getDb();
+  let renamed = 0;
+  for (const c of parsed.data) {
+    const rows = await db
+      .update(schema.recipes)
+      .set({ title: c.title, updatedAt: new Date() })
+      .where(and(eq(schema.recipes.id, c.id), eq(schema.recipes.householdId, viewer.household.id)))
+      .returning({ id: schema.recipes.id });
+    renamed += rows.length;
+  }
+  revalidatePath("/recipes");
+  return { ok: true, value: { renamed } };
+}
+
 export async function setRating(id: string, rating: number | null) {
   const { db, recipe } = await ownRecipe(id);
   if (!recipe) return;

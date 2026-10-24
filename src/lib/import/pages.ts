@@ -1,5 +1,6 @@
 import { ING_HEAD, parseSections, STARTS_WITH_AMOUNT, STEP_HEAD, textLines } from "./text";
 import { tidyTitle } from "../ingredients/names";
+import { pickTitle, suggestTitle } from "./title";
 import { emptyRecipe, type ImportedRecipe } from "./types";
 
 // Photos of recipes come in as pages: one card, or a recipe spread over two or three cookbook
@@ -82,10 +83,13 @@ export function readPageText(text: string): RecipePart[] {
   return starts.map((start, k) => {
     const seg = lines.slice(start, starts[k + 1] ?? lines.length);
     const firstMeaningful = seg.find((l) => !CONTINUED.test(l)) ?? "";
-    const nearTop = seg.slice(0, 10);
+    const nearTop = seg.slice(0, 20);
     const hasRecipeNearTop = nearTop.some((l) => ING_HEAD.test(l) || STARTS_WITH_AMOUNT.test(l));
-    const title = isTitleLike(seg[0]) && hasRecipeNearTop && !CONTINUED.test(seg[0]) ? seg[0] : null;
-    const body = title ? seg.slice(1) : seg;
+    // The dish name is the line near the top that reads most like one, not just the first line.
+    const firstIngredient = seg.findIndex((l) => ING_HEAD.test(l) || STARTS_WITH_AMOUNT.test(l));
+    const picked = hasRecipeNearTop && !CONTINUED.test(seg[0]) ? pickTitle(seg, Math.max(1, Math.min(14, firstIngredient < 0 ? 14 : firstIngredient))) : null;
+    const title = picked?.title ?? null;
+    const body = picked ? seg.filter((_, i) => !picked.used.includes(i)) : seg;
     const startsWithStep = /^(?:step\s*)?([2-9]|\d{2,})[.):]\s/i.test(firstMeaningful) || /^[a-z]/.test(firstMeaningful);
     // A page without a name picks up mid-recipe: in the ingredient list, or in the steps.
     const startMode = title ? "intro" : STARTS_WITH_AMOUNT.test(firstMeaningful) && !startsWithStep ? "ing" : !body.some((l) => ING_HEAD.test(l)) ? "step" : "intro";
@@ -159,7 +163,7 @@ export function buildGroups(parts: PagePart[], breaks: boolean[]): PageGroup[] {
     r.tags = [...new Set([...r.tags, ...part.tags])];
   });
   for (const g of groups) {
-    g.recipe.title = g.recipe.title ? tidyTitle(g.recipe.title) : "Untitled recipe";
+    g.recipe.title = g.recipe.title ? tidyTitle(g.recipe.title) : (suggestTitle(g.recipe) ?? "Untitled recipe");
     if (g.recipe.prepMinutes || g.recipe.cookMinutes) g.recipe.totalMinutes = (g.recipe.prepMinutes ?? 0) + (g.recipe.cookMinutes ?? 0);
   }
   return groups;

@@ -69,7 +69,7 @@ function titleCase(text: string): string {
   return text
     .toLowerCase()
     .split(" ")
-    .map((w, i) => (i > 0 && SMALL.has(w) ? w : w.replace(/^([("']?)([a-z])/, (_, p: string, c: string) => p + c.toUpperCase())))
+    .map((w, i) => (i > 0 && SMALL.has(w) ? w : w.replace(/(^[("'“]?|-)([a-z])/g, (_, p: string, c: string) => p + c.toUpperCase())))
     .join(" ");
 }
 
@@ -78,7 +78,8 @@ function titleCase(text: string): string {
  * or all-lowercase titles, and collapse stray spaces. Titles that already look deliberate stay.
  */
 export function tidyTitle(raw: string): string {
-  let t = raw.replace(/\s+/g, " ").trim();
+  // Stray symbols the photo reader picks up before a name ("_— ", "£ ", "++*").
+  let t = raw.replace(/[*_#`~]{2,}/g, " ").replace(/\s+/g, " ").trim().replace(/^[^A-Za-z0-9"'“(]+/, "");
   t = t.replace(/\s+[|•·]\s+.*$/, ""); // "Taco Soup | Allrecipes"
   t = t.replace(/\s+[-–—]\s+(?:[A-Z][\w'.]*\s*){1,4}$/, (m) => (/recipe|kitchen|blog|food|eats|cooking|\.com/i.test(m) ? "" : m));
   t = t.replace(/\s+recipe$/i, "").replace(/^recipe:\s*/i, "");

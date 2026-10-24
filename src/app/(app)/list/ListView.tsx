@@ -137,6 +137,7 @@ export function ListView({
           }}
           onCart={(i) => patch({ ids: [i.id], inCart: !i.inCart }, () => setInCart(i.id, !i.inCart))}
           onCartMany={(ids) => patch({ ids, inCart: true }, () => updateItems(planId, ids, { inCart: true }))}
+          onResetCart={(ids) => patch({ ids, inCart: false }, () => updateItems(planId, ids, { inCart: false }))}
           walmartLookup={walmartLookup}
           onMatch={async () => {
             const res = await matchWalmartProducts(planId);
@@ -319,6 +320,7 @@ function OrderStep({
   onStore,
   onCart,
   onCartMany,
+  onResetCart,
   onMatch,
   onRemember,
   onDetail,
@@ -330,6 +332,7 @@ function OrderStep({
   onStore: (s: Store) => void;
   onCart: (i: ListItem) => void;
   onCartMany: (ids: string[]) => void;
+  onResetCart: (ids: string[]) => void;
   onMatch: () => Promise<{ ok: true; value: { matched: number; missed: string[] } } | { ok: false; error: string }>;
   onRemember: (i: ListItem, url: string) => void;
   onDetail: (i: ListItem) => void;
@@ -338,6 +341,8 @@ function OrderStep({
   // Everything not yet in the cart starts selected.
   const [unselected, setUnselected] = useState<Set<string>>(new Set());
   const [run, setRun] = useState<ListItem[] | null>(null);
+  // After the one-tap Walmart link: ask, rather than assume, that Walmart took the items.
+  const [confirm, setConfirm] = useState<{ ids: string[]; then: ListItem[] } | null>(null);
   const [matching, setMatching] = useState(false);
   const [matchNote, setMatchNote] = useState<string>();
   const buy = (i: ListItem) => (store === "walmart" ? i.buyWalmart : i.buySams);
@@ -510,10 +515,7 @@ function OrderStep({
               href={oneTapUrl}
               target="_blank"
               rel="noreferrer"
-              onClick={() => {
-                onCartMany(oneTap.map((i) => i.id));
-                if (byHand.length) setRun(byHand);
-              }}
+              onClick={() => setConfirm({ ids: oneTap.map((i) => i.id), then: byHand })}
               className="flex h-12 items-center justify-center gap-2 rounded-full bg-brand font-medium text-brand-ink"
             >
               <Icon name="cart" /> Add {selected.length} to {STORE_NAME[store]} cart
@@ -525,7 +527,7 @@ function OrderStep({
           )
         ) : (
           <a href={CART_URL[store]} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center gap-2 rounded-full bg-brand font-medium text-brand-ink">
-            <Icon name="external" /> Open {STORE_NAME[store]} cart to check out
+            <Icon name="cart" /> Check out at {STORE_NAME[store]}
           </a>
         )}
         {selected.length && byHand.length ? (
@@ -533,10 +535,54 @@ function OrderStep({
             {oneTap.length ? `${oneTap.length} go in with one tap; ` : ""}
             {byHand.length} {byHand.length === 1 ? "is" : "are"} added one at a time{store === "walmart" ? " until their products are saved" : ""}.
           </p>
-        ) : inCart ? (
-          <p className="text-center text-xs text-muted">{inCart} in cart. Check out in {STORE_NAME[store]} and pick a pickup time.</p>
+        ) : null}
+        {inCart ? (
+          <p className="text-center text-xs text-muted">
+            {selected.length
+              ? `${inCart} marked in cart. `
+              : `Opens your ${STORE_NAME[store]} cart: tap Check out, pick a pickup time and pay there (${STORE_NAME[store]} doesn't let other apps take payment). `}
+            <button
+              type="button"
+              onClick={() => onResetCart(items.filter((i) => i.inCart).map((i) => i.id))}
+              className="font-medium text-brand underline underline-offset-2"
+            >
+              Nothing went in? Reset
+            </button>
+          </p>
         ) : null}
       </div>
+
+      <Sheet open={Boolean(confirm)} onClose={() => setConfirm(null)} title="Did Walmart add them?">
+        {confirm ? (
+          <div className="flex flex-col gap-3 text-sm">
+            <p>
+              Check the Walmart window that opened: are the {confirm.ids.length} item{confirm.ids.length === 1 ? "" : "s"} in your cart? If it asked you to sign in, sign in and
+              tap the button again.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setConfirm(null);
+                }}
+              >
+                No
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  onCartMany(confirm.ids);
+                  const then = confirm.then;
+                  setConfirm(null);
+                  if (then.length) setRun(then);
+                }}
+              >
+                Yes, they&apos;re in
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Sheet>
 
       <CartRun
         store={store}
@@ -549,6 +595,22 @@ function OrderStep({
       />
     </>
   );
+}
+
+const TIP_KEY = "mp_store_signin_tip_";
+function seenTip(store: Store): boolean {
+  try {
+    return window.localStorage.getItem(TIP_KEY + store) === "1";
+  } catch {
+    return false;
+  }
+}
+function markTipSeen(store: Store) {
+  try {
+    window.localStorage.setItem(TIP_KEY + store, "1");
+  } catch {
+    /* private browsing: the tip shows again next time */
+  }
 }
 
 /** Adding items the store can't take in one go: one item at a time, opening each in the store's app. */
@@ -593,18 +655,42 @@ function CartRunBody({
   onRemember: (i: ListItem, url: string) => void;
   onClose: () => void;
 }) {
-  const [index, setIndex] = useState(0);
+  // -1 shows the sign-in tip first, once per store on this device.
+  const [index, setIndex] = useState(() => (seenTip(store) ? 0 : -1));
   const [url, setUrl] = useState("");
+  const [opened, setOpened] = useState(false);
   const item = queue[index];
+
+  if (index === -1) {
+    return (
+      <div className="flex flex-col gap-3 text-sm">
+        <p className="font-display text-xl font-semibold">Before you start</p>
+        <p>
+          Each item opens {STORE_NAME[store]} in a small browser window. <strong>Sign in to your {STORE_NAME[store]} account there the first time.</strong> Your cart is
+          saved to your account, so what you add there shows up in the {STORE_NAME[store]} app too.
+        </p>
+        <p className="text-muted">This app can&apos;t see your {STORE_NAME[store]} cart, so after you add each item, come back and tap “It&apos;s in my cart”.</p>
+        <Button
+          variant="primary"
+          onClick={() => {
+            markTipSeen(store);
+            setIndex(0);
+          }}
+        >
+          Got it
+        </Button>
+      </div>
+    );
+  }
 
   if (!item) {
     return (
       <div className="flex flex-col items-center gap-3 py-4 text-center">
         <Icon name="check" className="size-10 text-brand" />
-        <p className="font-display text-xl font-semibold">All added</p>
-        <p className="text-sm text-muted">Now check out in {STORE_NAME[store]} and choose a pickup time.</p>
+        <p className="font-display text-xl font-semibold">All done</p>
+        <p className="text-sm text-muted">Your cart is ready. In {STORE_NAME[store]}, tap Check out, choose a pickup time and pay.</p>
         <a href={CART_URL[store]} target="_blank" rel="noreferrer" className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-brand font-medium text-brand-ink">
-          <Icon name="external" /> Open {STORE_NAME[store]} cart
+          <Icon name="cart" /> Check out at {STORE_NAME[store]}
         </a>
         <Button variant="ghost" onClick={onClose}>
           Done
@@ -617,6 +703,7 @@ function CartRunBody({
   const href = product?.productUrl ?? searchUrl(store, searchQuery(item.name, buy(item), store));
   const next = () => {
     setUrl("");
+    setOpened(false);
     setIndex((n) => n + 1);
   };
 
@@ -632,22 +719,32 @@ function CartRunBody({
         <p className="font-display text-2xl font-semibold">{item.name}</p>
         <p className="text-muted">{buy(item) || item.needText}</p>
       </div>
-      <a href={href} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center gap-2 rounded-full border border-brand font-medium text-brand">
-        <Icon name="external" /> {product ? `Open it in ${STORE_NAME[store]}` : `Find it in ${STORE_NAME[store]}`}
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        onClick={() => setOpened(true)}
+        className={cx(
+          "flex h-12 items-center justify-center gap-2 rounded-full font-medium",
+          opened ? "border border-brand text-brand" : "bg-brand text-brand-ink",
+        )}
+      >
+        <Icon name="external" /> {product ? `1. Open it in ${STORE_NAME[store]}` : `1. Find it in ${STORE_NAME[store]}`}
       </a>
+      <p className="-mt-2 text-center text-xs text-muted">Add it to your cart there, then come back.</p>
       <div className="grid grid-cols-2 gap-2">
         <Button variant="ghost" onClick={next}>
           Skip
         </Button>
         <Button
-          variant="primary"
+          variant={opened ? "primary" : "secondary"}
           onClick={() => {
             if (url.trim()) onRemember(item, url.trim());
             onAdded(item);
             next();
           }}
         >
-          <Icon name="check" /> Added
+          <Icon name="check" /> 2. It&apos;s in my cart
         </Button>
       </div>
       {!product ? (

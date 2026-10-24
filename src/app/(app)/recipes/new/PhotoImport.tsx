@@ -5,7 +5,8 @@ import { useMemo, useState } from "react";
 import { readPhotoPage, saveRecipe } from "@/actions/recipes";
 import { Icon } from "@/components/icons";
 import { RecipeEditor, type EditorValue } from "@/components/RecipeEditor";
-import { Button, Card, cx, ErrorText } from "@/components/ui";
+import { Button, Card, cx, ErrorText, inputClass } from "@/components/ui";
+import { looksLikeBadTitle } from "@/lib/import/title";
 import { buildGroups, defaultBreaks, readPageText, type PageGroup, type PagePart, type RecipePart } from "@/lib/import/pages";
 import type { ImportedRecipe } from "@/lib/import/types";
 import { readPhotoText } from "@/lib/ocr/reader";
@@ -68,6 +69,8 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
   const [editing, setEditing] = useState<number | null>(null);
   const [error, setError] = useState<string>();
   const [savingAll, setSavingAll] = useState(false);
+  // Names typed on the review screen, by group.
+  const [titles, setTitles] = useState<Record<number, string>>({});
 
   const update = (id: string, patch: Partial<Photo>) => setPhotos((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
 
@@ -131,6 +134,7 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
     const flat: PagePart[] = photos.flatMap((p, page) => (results.get(p.id) ?? []).map((part) => ({ ...part, page })));
     setBreaks(defaultBreaks(flat));
     setSaved({});
+    setTitles({});
     setStage("review");
   };
 
@@ -139,7 +143,10 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
 
   // Regrouping is only offered before anything is saved, so saved recipes never get saved twice.
   const anySaved = Object.keys(saved).length > 0;
-  const toggleBreak = (partIndex: number, value: boolean) => setBreaks((b) => b.map((x, i) => (i === partIndex ? value : x)));
+  const toggleBreak = (partIndex: number, value: boolean) => {
+    setBreaks((b) => b.map((x, i) => (i === partIndex ? value : x)));
+    setTitles({});
+  };
 
   const saveAll = async () => {
     setSavingAll(true);
@@ -147,7 +154,7 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
     for (let g = 0; g < groups.length; g++) {
       if (saved[g]) continue;
       const group = groups[g];
-      const res = await saveRecipe({ ...toEditor(group.recipe, photos[group.pages[0]]?.thumb ?? null), mealTypes: [] });
+      const res = await saveRecipe({ ...toEditor({ ...group.recipe, title: titles[g]?.trim() || group.recipe.title }, photos[group.pages[0]]?.thumb ?? null), mealTypes: [] });
       if (res.ok) setSaved((s) => ({ ...s, [g]: res.value.id }));
       else setError(`“${group.recipe.title}”: ${res.error}`);
     }
@@ -168,7 +175,7 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
           ))}
         </div>
         <RecipeEditor
-          initial={toEditor(group.recipe, photos[group.pages[0]]?.thumb ?? null)}
+          initial={toEditor({ ...group.recipe, title: titles[editing]?.trim() || group.recipe.title }, photos[group.pages[0]]?.thumb ?? null)}
           notice="Read from your photos. Check the amounts before saving."
           onSaved={(id) => {
             setSaved((s) => ({ ...s, [editing]: id }));
@@ -238,7 +245,17 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
                     ))}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="line-clamp-2 font-medium leading-snug">{group.recipe.title}</p>
+                    {saved[g] ? (
+                      <p className="line-clamp-2 font-medium leading-snug">{titles[g] ?? group.recipe.title}</p>
+                    ) : (
+                      <input
+                        value={titles[g] ?? group.recipe.title}
+                        onChange={(e) => setTitles((t) => ({ ...t, [g]: e.target.value }))}
+                        onFocus={(e) => looksLikeBadTitle(e.target.value) && e.target.select()}
+                        aria-label="Recipe name"
+                        className={cx(inputClass, "h-9 font-medium", looksLikeBadTitle(titles[g] ?? group.recipe.title) && "border-warn")}
+                      />
+                    )}
                     <p className="text-xs text-muted">
                       {group.pages.length > 1 ? `Photos ${group.pages.map((p) => p + 1).join(" + ")}` : `Photo ${group.pages[0] + 1}`} · {plural(group.recipe.ingredients.length, "ingredient")} · {plural(group.recipe.steps.length, "step")}
                     </p>
