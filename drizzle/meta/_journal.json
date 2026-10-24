@@ -50,6 +50,13 @@
       "when": 1792804224032,
       "tag": "0006_imported_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792804324032,
+      "tag": "0007_recipe_file",
+      "breakpoints": true
     }
   ]
 }
