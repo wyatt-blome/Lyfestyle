@@ -11,7 +11,7 @@ import { recipeTime } from "@/lib/time";
 import type { MealType } from "@/lib/moods";
 import { rankForSlot } from "@/lib/planner";
 import { requireViewer } from "@/server/auth";
-import { buildListForPlan, createWeek, householdRecipes, mealForHousehold, pantryOverrides, planById, plannedRecipes, toCandidate } from "@/server/data";
+import { buildListForPlan, createWeek, markRequestsPlanned, householdRecipes, mealForHousehold, pantryOverrides, planById, plannedRecipes, toCandidate } from "@/server/data";
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -200,6 +200,7 @@ export async function approvePlan(planId: string): Promise<Result<{ weekStart: s
   const meals = await db.select().from(schema.planMeals).where(eq(schema.planMeals.planId, plan.id));
   if (!meals.some((m) => m.recipeId)) return { ok: false, error: "Add at least one meal before approving." };
   await buildListForPlan(viewer.household.id, plan, viewer.user.name);
+  await markRequestsPlanned(viewer.household.id, plan.id, plan.weekStart, meals.map((m) => m.recipeId).filter((x): x is string => Boolean(x)));
   await db
     .update(schema.mealPlans)
     .set({ status: "approved", approvedAt: new Date(), approvedBy: viewer.user.name })

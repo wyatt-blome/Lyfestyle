@@ -6,9 +6,11 @@ import { Icon } from "@/components/icons";
 import { isSectionHeader } from "@/lib/ingredients/parse";
 import { recipeImageSrc } from "@/lib/images";
 import { inferMealTypes } from "@/lib/moods";
-import { shortDate } from "@/lib/dates";
+import { addDays, shortDate } from "@/lib/dates";
 import { formatMinutes, recipeTime } from "@/lib/time";
+import { RequestMealButton } from "@/components/RequestMeal";
 import { requireViewer } from "@/server/auth";
+import { currentWeekStart } from "@/server/data";
 import { RecipeActions } from "./RecipeActions";
 
 export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
@@ -23,6 +25,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
   if (!r) notFound();
   const img = recipeImageSrc(r);
   const time = recipeTime(r);
+  const thisWeek = currentWeekStart(viewer.household.settings);
   const mealTypes = r.mealTypes.length ? r.mealTypes : inferMealTypes(r);
   let host: string | null = null;
   try {
@@ -62,6 +65,14 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         {r.description ? <p className="mt-3 leading-relaxed">{r.description}</p> : null}
       </header>
 
+      <RequestMealButton
+        recipes={[]}
+        recipe={{ id: r.id, title: r.title, imageUrl: img }}
+        thisWeek={thisWeek}
+        nextWeek={addDays(thisWeek, 7)}
+        variant="ghost"
+        className="-mb-2 self-start text-accent"
+      />
       <RecipeActions id={r.id} rating={r.rating} isFavorite={r.isFavorite} isStaple={r.isStaple} stapleEveryWeeks={r.stapleEveryWeeks} mealTypes={mealTypes} />
 
       <section>

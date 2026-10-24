@@ -1,11 +1,11 @@
 import "server-only";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { HouseholdSettings, MealPlan, PlanMeal, Recipe, WeekRequestJson } from "@/db/schema";
 import { addDays, todayIn, weekStartFor } from "@/lib/dates";
 import { CATALOG_BY_KEY } from "@/lib/ingredients/catalog";
 import { buildGroceryList, type PlannedRecipe } from "@/lib/ingredients/grocery";
-import { inferMealTypes, type MealType } from "@/lib/moods";
+import { fitsSlot, inferMealTypes, type MealType } from "@/lib/moods";
 import { recipeTime } from "@/lib/time";
 import { autoFill, type CandidateRecipe, type Slot } from "@/lib/planner";
 
@@ -140,12 +140,25 @@ export async function createWeek(opts: {
   // Dinners with leftover lunches are cooked bigger; rank them with that in mind.
   for (const d of drafts) if (d.leftoverOf !== null) slots[d.leftoverOf].servings! += request.people;
 
+  // Requested meals go on the plan first; ideas in words steer the recommendations.
+  const requests = await openRequests(householdId, weekStart);
+  const placed: string[] = [];
+  for (const r of requests) {
+    const recipe = r.recipeId ? candidates.find((c) => c.id === r.recipeId) : undefined;
+    if (!recipe || slots.some((s) => s.recipeId === recipe.id)) continue;
+    const slot = slots.find((s) => !s.recipeId && !s.locked && fitsSlot(recipe.mealTypes, s.mealType) === 1) ?? slots.find((s) => !s.recipeId && !s.locked && fitsSlot(recipe.mealTypes, s.mealType) > 0);
+    if (!slot) continue;
+    slot.recipeId = recipe.id;
+    placed.push(r.id);
+  }
+  const ideas = requests.filter((r) => r.text).map((r) => r.text!);
+
   const picks = autoFill({
     slots,
     recipes: candidates,
     store,
     pantryKeys,
-    request: { moods: request.moods, note: request.note },
+    request: { moods: request.moods, note: [request.note, ...ideas].filter(Boolean).join(", ") },
     includeDueStaples: request.includeStaples,
     today: new Date(`${opts.today}T12:00:00Z`),
   });
@@ -170,13 +183,15 @@ export async function createWeek(opts: {
         mealType: d.mealType,
         position: d.position,
         day: d.day,
-        recipeId: d.leftoverOf === null ? (picks.get(i) ?? null) : null,
+        recipeId: d.leftoverOf === null ? (picks.get(i) ?? slots[i].recipeId ?? null) : null,
         servings: request.people,
         leftoverOfId: d.leftoverOf === null ? null : ids[d.leftoverOf],
         note: d.leftoverOf === null ? null : "Leftovers",
       })),
     );
   }
+  const used = [...placed, ...requests.filter((r) => r.text).map((r) => r.id)];
+  if (used.length) await db.update(schema.mealRequests).set({ status: "planned", planId: plan.id }).where(inArray(schema.mealRequests.id, used));
   return plan;
 }
 
@@ -239,6 +254,30 @@ export async function buildListForPlan(householdId: string, plan: MealPlan, user
       .set({ lastPlannedOn: plan.weekStart, timesPlanned: r.timesPlanned + 1 })
       .where(eq(schema.recipes.id, r.id));
   }
+}
+
+/** Requests still waiting: for this week, or for whenever. */
+export async function openRequests(householdId: string, weekStart: string) {
+  const db = await getDb();
+  return db
+    .select()
+    .from(schema.mealRequests)
+    .where(
+      and(
+        eq(schema.mealRequests.householdId, householdId),
+        eq(schema.mealRequests.status, "open"),
+        or(isNull(schema.mealRequests.weekStart), eq(schema.mealRequests.weekStart, weekStart)),
+      ),
+    )
+    .orderBy(asc(schema.mealRequests.createdAt));
+}
+
+/** Requests whose recipe is now on a plan are done. */
+export async function markRequestsPlanned(householdId: string, planId: string, weekStart: string, recipeIds: string[]) {
+  if (!recipeIds.length) return;
+  const db = await getDb();
+  const open = (await openRequests(householdId, weekStart)).filter((r) => r.recipeId && recipeIds.includes(r.recipeId));
+  if (open.length) await db.update(schema.mealRequests).set({ status: "planned", planId }).where(inArray(schema.mealRequests.id, open.map((r) => r.id)));
 }
 
 export function catalogName(key: string): string | null {

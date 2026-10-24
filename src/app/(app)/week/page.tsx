@@ -8,7 +8,8 @@ import { inferMealTypes } from "@/lib/moods";
 import { recipeTime } from "@/lib/time";
 import { riskyLeftovers } from "@/lib/planner";
 import { requireViewer } from "@/server/auth";
-import { currentWeekStart, getPlan, householdRecipes, pantryOverrides, plannedRecipes } from "@/server/data";
+import { RequestMealButton, RequestsCard, type OpenRequest } from "@/components/RequestMeal";
+import { currentWeekStart, getPlan, householdRecipes, openRequests, pantryOverrides, plannedRecipes } from "@/server/data";
 import { PlanWizard } from "./PlanWizard";
 import { WeekPlan, type MealView, type RecipeLite } from "./WeekPlan";
 
@@ -47,11 +48,35 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
 
   const header = <PageHeader title={label} subtitle={formatWeek(weekStart)} action={nav} />;
 
+  // Meal requests from the household, shown above the plan.
+  const pending = await openRequests(viewer.household.id, weekStart);
+  const requests: OpenRequest[] = pending.map((r) => ({
+    id: r.id,
+    recipeId: r.recipeId,
+    title: r.recipeId ? (byId.get(r.recipeId)?.title ?? "A recipe") : (r.text ?? ""),
+    isIdea: !r.recipeId,
+    requestedBy: r.requestedBy,
+    forWeek: r.weekStart === weekStart,
+  }));
+  const requestBar = (planning: boolean) => (
+    <div className="mb-5 flex flex-col gap-3">
+      <RequestsCard requests={requests} weekStart={weekStart} canPlan={!planning} />
+      {planning && requests.length ? <p className="-mt-1 text-xs text-muted">Requests are included automatically when you plan the week.</p> : null}
+      <RequestMealButton
+        recipes={lite.map((r) => ({ id: r.id, title: r.title, imageUrl: r.imageUrl }))}
+        thisWeek={weekStart}
+        nextWeek={addDays(weekStart, 7)}
+        className="self-start"
+      />
+    </div>
+  );
+
   if (!found || params.replan === "1" || (!found.meals.length && found.plan.status === "draft" && !found.plan.request)) {
     const prev = found?.plan.request;
     return (
       <>
         {header}
+        {requestBar(true)}
         <PlanWizard
           weekStart={weekStart}
           recipeCount={recipes.length}
@@ -97,6 +122,7 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
   return (
     <>
       {header}
+      {requestBar(false)}
       <WeekPlan
         planId={plan.id}
         weekStart={weekStart}

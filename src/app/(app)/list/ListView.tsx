@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useOptimistic, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { addItem, forgetProduct, matchWalmartProducts, rememberProduct, removeItem, setAlwaysHave, setInCart, setItemStatus, updateItems } from "@/actions/list";
 import { setStore } from "@/actions/household";
 import { Icon } from "@/components/icons";
@@ -367,6 +367,15 @@ function OrderStep({
     else if (res.value.missed.length) setMatchNote(`Couldn't find ${res.value.missed.join(", ")} at Walmart; those are added one at a time.`);
   };
 
+  // With Walmart lookup set up, find products as soon as the order opens, so nobody searches.
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (autoTried.current || unmatched === 0) return;
+    autoTried.current = true;
+    void Promise.resolve().then(findProducts);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unmatched]);
+
   const copyList = async () => {
     const text = groupByAisle(items)
       .map(([aisle, list]) => `${aisle}\n${list.map((i) => `- ${i.name}${buy(i) ? ` (${buy(i)})` : ""}`).join("\n")}`)
@@ -417,9 +426,11 @@ function OrderStep({
           <span className="min-w-0 flex-1 text-muted">
             {matching ? "Finding Walmart products…" : `${unmatched} item${unmatched === 1 ? "" : "s"} not matched to a Walmart product yet.`}
           </span>
-          <Button size="sm" busy={matching} onClick={findProducts}>
-            Find products
-          </Button>
+          {!matching ? (
+            <Button size="sm" onClick={findProducts}>
+              Try again
+            </Button>
+          ) : null}
         </Card>
       ) : null}
       {matchNote ? <p className="rounded-xl bg-warn-soft px-3 py-2 text-sm">{matchNote}</p> : null}

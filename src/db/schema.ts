@@ -174,6 +174,27 @@ export const groceryItems = pgTable(
   (t) => [index("grocery_items_plan_idx").on(t.planId)],
 );
 
+/** "Can we have …?" A household member asks for a recipe, or describes an idea. */
+export const mealRequests = pgTable(
+  "meal_requests",
+  {
+    id: id(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    recipeId: text("recipe_id").references(() => recipes.id, { onDelete: "cascade" }),
+    /** an idea in words when there's no recipe: "something with shrimp" */
+    text: text("text"),
+    requestedBy: text("requested_by"),
+    /** the week asked for; null = whenever */
+    weekStart: date("week_start", { mode: "string" }),
+    status: text("status").$type<"open" | "planned" | "dismissed">().notNull().default("open"),
+    planId: text("plan_id"),
+    createdAt: created(),
+  },
+  (t) => [index("meal_requests_household_idx").on(t.householdId)],
+);
+
 /** Things this household always keeps on hand (beyond the built-in pantry basics). */
 export const pantryItems = pgTable(
   "pantry_items",
@@ -213,3 +234,4 @@ export type MealPlan = typeof mealPlans.$inferSelect;
 export type PlanMeal = typeof planMeals.$inferSelect;
 export type GroceryItem = typeof groceryItems.$inferSelect;
 export type StoreProduct = typeof storeProducts.$inferSelect;
+export type MealRequest = typeof mealRequests.$inferSelect;

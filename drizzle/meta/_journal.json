@@ -15,6 +15,13 @@
       "when": 1792799992491,
       "tag": "0001_recipe_rating",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792802201691,
+      "tag": "0002_meal_requests",
+      "breakpoints": true
     }
   ]
 }
