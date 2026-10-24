@@ -3,21 +3,33 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { addToWeek, deleteRecipe, setFavorite, setStaple } from "@/actions/recipes";
+import { addToWeek, deleteRecipe, setFavorite, setRating, setStaple } from "@/actions/recipes";
+import { StarRating } from "@/components/Stars";
 import { Icon } from "@/components/icons";
 import { Button, Chip, ErrorText } from "@/components/ui";
 
-export function RecipeActions(props: { id: string; isFavorite: boolean; isStaple: boolean; stapleEveryWeeks: number | null; mealTypes: string[] }) {
+export function RecipeActions(props: { id: string; rating: number | null; isFavorite: boolean; isStaple: boolean; stapleEveryWeeks: number | null; mealTypes: string[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
   const [fav, setFav] = useState(props.isFavorite);
+  const [rating, setRatingState] = useState(props.rating);
   const [staple, setStapleState] = useState(props.isStaple ? (props.stapleEveryWeeks ?? 1) : null);
   const type = (props.mealTypes.find((t) => t === "dinner") ?? props.mealTypes[0] ?? "dinner") as "breakfast" | "lunch" | "dinner";
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-3">
+        <StarRating
+          value={rating}
+          onChange={(r) => {
+            setRatingState(r);
+            start(() => setRating(props.id, r));
+          }}
+        />
+        <span className="text-sm text-muted">{rating ? `${rating} of 5` : "Tap to rate"}</span>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <Chip
           selected={fav}
@@ -26,7 +38,7 @@ export function RecipeActions(props: { id: string; isFavorite: boolean; isStaple
             start(() => setFavorite(props.id, !fav));
           }}
         >
-          <Icon name="heart" filled={fav} className="size-4" /> {fav ? "Favorite" : "Favorite"}
+          <Icon name="heart" filled={fav} className="size-4" /> Favorite
         </Chip>
         <Chip
           selected={staple !== null}

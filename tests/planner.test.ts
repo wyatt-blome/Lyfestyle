@@ -56,6 +56,16 @@ describe("rankForSlot", () => {
   });
 });
 
+describe("ratings", () => {
+  it("ranks higher-rated recipes first, other things equal", () => {
+    const a = r("a", "Plain Pasta", ["1 lb spaghetti"], { rating: 2 });
+    const b = r("b", "Other Pasta", ["1 lb spaghetti"], { rating: 5 });
+    const ranked = rankForSlot({ others: [], candidates: [a, b], servings: 4, mealType: "dinner", store: "walmart" });
+    expect(ranked.map((s) => s.recipe.id)).toEqual(["b", "a"]);
+    expect(ranked[0].reasons).toContain("Rated 5★");
+  });
+});
+
 describe("autoFill", () => {
   it("puts due staples first and fills the rest", () => {
     const staple = r("staple", "Taco Tuesday", ["1 lb ground beef"], { isStaple: true, stapleEveryWeeks: 1, lastPlannedOn: "2026-10-11" });

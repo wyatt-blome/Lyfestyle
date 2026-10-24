@@ -5,6 +5,7 @@ import { addDays, formatWeek, isIsoDate, weekStartFor } from "@/lib/dates";
 import { buildGroceryList } from "@/lib/ingredients/grocery";
 import { recipeImageSrc } from "@/lib/images";
 import { inferMealTypes } from "@/lib/moods";
+import { recipeTime } from "@/lib/time";
 import { riskyLeftovers } from "@/lib/planner";
 import { requireViewer } from "@/server/auth";
 import { currentWeekStart, getPlan, householdRecipes, pantryOverrides, plannedRecipes } from "@/server/data";
@@ -25,7 +26,9 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
     title: r.title,
     imageUrl: recipeImageSrc(r),
     mealTypes: r.mealTypes.length ? r.mealTypes : inferMealTypes(r),
-    totalMinutes: r.totalMinutes,
+    totalMinutes: recipeTime(r)?.total ?? null,
+    timeEstimated: recipeTime(r)?.estimated ?? false,
+    rating: r.rating,
     isFavorite: r.isFavorite,
     isStaple: r.isStaple,
   }));

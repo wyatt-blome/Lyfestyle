@@ -68,6 +68,7 @@ const FileRecipe = z.object({
   notes: z.string().max(5000).nullish(),
   sourceUrl: z.string().url().max(2000).nullish(),
   isFavorite: z.boolean().default(false),
+  rating: z.number().int().min(1).max(5).nullish(),
 });
 
 /**
@@ -119,6 +120,7 @@ export async function importRecipeFile(json: string): Promise<Result<{ added: nu
       sourceUrl: r.sourceUrl ?? null,
       sourceType: "photo",
       isFavorite: r.isFavorite,
+      rating: r.rating ?? null,
     });
     if (saved.ok) {
       added++;
@@ -166,6 +168,7 @@ const RecipeInput = z.object({
   mealTypes: z.array(z.enum(["breakfast", "lunch", "dinner"])).max(3),
   notes: z.string().max(5000).nullable().optional(),
   isFavorite: z.boolean().default(false),
+  rating: z.number().int().min(1).max(5).nullable().optional(),
   isStaple: z.boolean().default(false),
   stapleEveryWeeks: z.number().int().min(1).max(12).nullable().optional(),
 });
@@ -274,6 +277,15 @@ async function ownRecipe(id: string) {
     .where(and(eq(schema.recipes.id, id), eq(schema.recipes.householdId, viewer.household.id)))
     .limit(1);
   return { viewer, db, recipe: r ?? null };
+}
+
+export async function setRating(id: string, rating: number | null) {
+  const { db, recipe } = await ownRecipe(id);
+  if (!recipe) return;
+  const value = rating === null ? null : Math.max(1, Math.min(5, Math.round(rating)));
+  await db.update(schema.recipes).set({ rating: value }).where(eq(schema.recipes.id, id));
+  revalidatePath("/recipes");
+  revalidatePath(`/recipes/${id}`);
 }
 
 export async function setFavorite(id: string, value: boolean) {

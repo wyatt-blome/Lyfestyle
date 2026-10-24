@@ -12,6 +12,8 @@ A household meal-planning and grocery app. Keep your recipes in one place, plan 
 - Import a **recipe file** (`.json`, under *Many at once*), for example one prepared from a large stack of photos.
 - **Paste** recipe text, or **type** a recipe in.
 - Mark recipes as a **Favorite**, or as a **Staple** that comes back every 1–4 weeks.
+- **Rate** recipes 1–5 stars, and sort the library by rating, quickest, A–Z, newest, or not made lately. Higher-rated recipes are recommended more often.
+- Every recipe shows its **total time**. When a recipe doesn't give one (photos, pasted text), it is estimated from the steps ("bake 30 minutes") and the ingredient prep, marked "about", and can be edited.
 
 **Planning a week**
 1. *How many meals?* Breakfasts, lunches and dinners, how many people, and how many lunches will be dinner leftovers. Leftover dinners are cooked bigger automatically.
@@ -109,6 +111,7 @@ src/app/               screens: week, recipes, list, household
       "steps": ["Brown the roast.", "Roast at 300 for 3 hours."],
       "tags": ["beef", "comfort"],
       "mealTypes": ["dinner"],
+      "rating": 5,
       "notes": "From the blue recipe box"
     }
   ]

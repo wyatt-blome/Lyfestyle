@@ -6,6 +6,7 @@ import { addDays, todayIn, weekStartFor } from "@/lib/dates";
 import { CATALOG_BY_KEY } from "@/lib/ingredients/catalog";
 import { buildGroceryList, type PlannedRecipe } from "@/lib/ingredients/grocery";
 import { inferMealTypes, type MealType } from "@/lib/moods";
+import { recipeTime } from "@/lib/time";
 import { autoFill, type CandidateRecipe, type Slot } from "@/lib/planner";
 
 export function currentWeekStart(settings: HouseholdSettings): string {
@@ -25,7 +26,9 @@ export function toCandidate(r: Recipe): CandidateRecipe {
     servings: r.servings,
     ingredients: r.ingredients,
     tags: r.tags,
-    totalMinutes: r.totalMinutes,
+    // Given or estimated, so "Quick" works for recipes without times too.
+    totalMinutes: recipeTime(r)?.total ?? null,
+    rating: r.rating,
     mealTypes: r.mealTypes.length ? r.mealTypes : inferMealTypes(r),
     isFavorite: r.isFavorite,
     isStaple: r.isStaple,

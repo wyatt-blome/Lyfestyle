@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useMemo, useOptimistic, useState, startTransition } from "react";
 import { setFavorite } from "@/actions/recipes";
 import { Icon } from "@/components/icons";
+import { StarsShown } from "@/components/Stars";
 import { Chip, cx, inputClass } from "@/components/ui";
+import { formatMinutes } from "@/lib/time";
 
 export interface LibraryRecipe {
   id: string;
@@ -12,7 +14,11 @@ export interface LibraryRecipe {
   imageUrl: string | null;
   tags: string[];
   mealTypes: string[];
-  totalMinutes: number | null;
+  /** total time, given or estimated */
+  minutes: number | null;
+  minutesEstimated: boolean;
+  rating: number | null;
+  createdAt: string;
   isFavorite: boolean;
   isStaple: boolean;
   needsIngredients: boolean;
@@ -23,6 +29,7 @@ const FILTERS = [
   { id: "all", label: "All" },
   { id: "favorites", label: "Favorites" },
   { id: "staples", label: "Staples" },
+  { id: "top", label: "4★ and up" },
   { id: "breakfast", label: "Breakfast" },
   { id: "lunch", label: "Lunch" },
   { id: "dinner", label: "Dinner" },
@@ -30,8 +37,37 @@ const FILTERS = [
   { id: "fix", label: "Needs ingredients" },
 ] as const;
 
+const SORTS = [
+  { id: "rating", label: "Top rated" },
+  { id: "quick", label: "Quickest" },
+  { id: "name", label: "A to Z" },
+  { id: "new", label: "Newest" },
+  { id: "stale", label: "Not made lately" },
+] as const;
+type Sort = (typeof SORTS)[number]["id"];
+
+function sortRecipes(list: LibraryRecipe[], sort: Sort): LibraryRecipe[] {
+  const byName = (a: LibraryRecipe, b: LibraryRecipe) => a.title.localeCompare(b.title);
+  const sorted = [...list];
+  switch (sort) {
+    case "rating":
+      // Unrated recipes go after rated ones.
+      return sorted.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || byName(a, b));
+    case "quick":
+      return sorted.sort((a, b) => (a.minutes ?? Infinity) - (b.minutes ?? Infinity) || byName(a, b));
+    case "new":
+      return sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    case "stale":
+      // Never planned first, then the longest since they were last on a plan.
+      return sorted.sort((a, b) => (a.lastPlannedOn ?? "").localeCompare(b.lastPlannedOn ?? "") || byName(a, b));
+    default:
+      return sorted.sort(byName);
+  }
+}
+
 export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<Sort>("name");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
   const [favs, toggleFav] = useOptimistic(new Map(recipes.map((r) => [r.id, r.isFavorite])), (state, id: string) => {
     const next = new Map(state);
@@ -41,7 +77,7 @@ export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return recipes.filter((r) => {
+    const matches = recipes.filter((r) => {
       if (q && !r.title.toLowerCase().includes(q) && !r.tags.some((t) => t.includes(q))) return false;
       switch (filter) {
         case "favorites":
@@ -52,21 +88,33 @@ export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
         case "lunch":
         case "dinner":
           return r.mealTypes.includes(filter);
+        case "top":
+          return (r.rating ?? 0) >= 4;
         case "quick":
-          return r.totalMinutes !== null && r.totalMinutes <= 30;
+          return r.minutes !== null && r.minutes <= 30;
         case "fix":
           return r.needsIngredients;
         default:
           return true;
       }
     });
-  }, [recipes, query, filter, favs]);
+    return sortRecipes(matches, sort);
+  }, [recipes, query, filter, favs, sort]);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="relative">
-        <Icon name="search" className="pointer-events-none absolute left-3 top-3 size-5 text-muted" />
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search recipes or tags" className={cx(inputClass, "pl-10")} />
+      <div className="flex gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Icon name="search" className="pointer-events-none absolute left-3 top-3 size-5 text-muted" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search recipes or tags" className={cx(inputClass, "pl-10")} />
+        </div>
+        <select aria-label="Sort by" value={sort} onChange={(e) => setSort(e.target.value as Sort)} className={cx(inputClass, "w-auto shrink-0 pr-8")}>
+          {SORTS.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
         {FILTERS.filter((f) => f.id !== "fix" || recipes.some((r) => r.needsIngredients)).map((f) => (
@@ -90,13 +138,19 @@ export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
                 )}
                 <div className="p-3">
                   <p className="line-clamp-2 text-sm font-medium leading-snug">{r.title}</p>
+                  {r.rating ? <StarsShown rating={r.rating} /> : null}
                   <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted">
                     {r.isStaple ? (
                       <span className="flex items-center gap-0.5 text-brand">
                         <Icon name="repeat" className="size-3" /> Staple
                       </span>
                     ) : null}
-                    {r.totalMinutes ? <span>{r.totalMinutes} min</span> : null}
+                    {r.minutes ? (
+                      <span title={r.minutesEstimated ? "Estimated from the steps" : undefined}>
+                        {r.minutesEstimated ? "~" : ""}
+                        {formatMinutes(r.minutes)}
+                      </span>
+                    ) : null}
                     {r.needsIngredients ? <span className="text-warn">Needs ingredients</span> : null}
                   </p>
                 </div>

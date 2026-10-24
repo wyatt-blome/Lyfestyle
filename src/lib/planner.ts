@@ -6,6 +6,8 @@ import { fitsSlot, moodScore, type MatchableRecipe, type MealType } from "./mood
 
 export interface CandidateRecipe extends RecipeForList, MatchableRecipe {
   isFavorite: boolean;
+  /** household rating, 1-5 stars */
+  rating?: number | null;
   isStaple: boolean;
   /** a staple wants to come back every N weeks */
   stapleEveryWeeks: number | null;
@@ -141,6 +143,11 @@ export function rankForSlot(opts: {
     if (recipe.isFavorite) {
       score += 1;
       reasons.push("Favorite");
+    }
+    // 3 stars is neutral; 5 stars counts about as much as a favorite, 1 star pushes it down.
+    if (recipe.rating) {
+      score += (recipe.rating - 3) * 0.5;
+      if (recipe.rating >= 4) reasons.push(`Rated ${recipe.rating}★`);
     }
     if (stapleIsDue(recipe, today)) {
       score += 1.5;

@@ -8,6 +8,8 @@ import { Button, Card, Chip, cx, ErrorText, Field, inputClass, textareaClass } f
 import { isSectionHeader, parseIngredientLine } from "@/lib/ingredients/parse";
 import { identify } from "@/lib/ingredients/normalize";
 import { MEAL_TYPES, inferMealTypes } from "@/lib/moods";
+import { formatMinutes, recipeTime } from "@/lib/time";
+import { StarRating } from "./Stars";
 
 export interface EditorValue {
   title: string;
@@ -19,12 +21,14 @@ export interface EditorValue {
   servings: number | null;
   prepMinutes: number | null;
   cookMinutes: number | null;
+  totalMinutes: number | null;
   ingredients: string[];
   steps: string[];
   tags: string[];
   mealTypes: string[];
   notes: string | null;
   isFavorite: boolean;
+  rating: number | null;
   isStaple: boolean;
   stapleEveryWeeks: number | null;
 }
@@ -69,6 +73,13 @@ export function RecipeEditor({
     [ingredients],
   );
 
+  const lines = (text: string) => text.split("\n").map((l) => l.trim()).filter(Boolean);
+  // What the recipe card will show; an estimate from the steps when no times are entered.
+  const time = useMemo(
+    () => recipeTime({ prepMinutes: v.prepMinutes, cookMinutes: v.cookMinutes, totalMinutes: v.totalMinutes, ingredients: lines(ingredients), steps: lines(steps) }),
+    [v.prepMinutes, v.cookMinutes, v.totalMinutes, ingredients, steps],
+  );
+
   const save = () =>
     start(async () => {
       setError(undefined);
@@ -83,6 +94,8 @@ export function RecipeEditor({
           tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
           mealTypes: mealTypes as ("breakfast" | "lunch" | "dinner")[],
           stapleEveryWeeks: v.isStaple ? (v.stapleEveryWeeks ?? 1) : null,
+          // Prep + cook wins over a total typed earlier, so changing either keeps them in step.
+          totalMinutes: v.prepMinutes || v.cookMinutes ? (v.prepMinutes ?? 0) + (v.cookMinutes ?? 0) : v.totalMinutes,
         },
         id,
       );
@@ -111,11 +124,35 @@ export function RecipeEditor({
             <input inputMode="numeric" value={v.servings ?? ""} onChange={(e) => set("servings", num(e.target.value))} className={inputClass} />
           </Field>
           <Field label="Prep (min)">
-            <input inputMode="numeric" value={v.prepMinutes ?? ""} onChange={(e) => set("prepMinutes", num(e.target.value))} className={inputClass} />
+            <input
+              inputMode="numeric"
+              value={v.prepMinutes ?? ""}
+              placeholder={time?.estimated && time.prep ? `~${time.prep}` : undefined}
+              onChange={(e) => set("prepMinutes", num(e.target.value))}
+              className={inputClass}
+            />
           </Field>
           <Field label="Cook (min)">
-            <input inputMode="numeric" value={v.cookMinutes ?? ""} onChange={(e) => set("cookMinutes", num(e.target.value))} className={inputClass} />
+            <input
+              inputMode="numeric"
+              value={v.cookMinutes ?? ""}
+              placeholder={time?.estimated && time.cook ? `~${time.cook}` : undefined}
+              onChange={(e) => set("cookMinutes", num(e.target.value))}
+              className={inputClass}
+            />
           </Field>
+        </div>
+        {time ? (
+          <p className="-mt-2 flex items-center gap-1.5 text-sm text-muted">
+            <Icon name="clock" className="size-4" /> Total time {formatMinutes(time.total, time.estimated)}
+            {time.estimated ? " (estimated from the steps; type times above to set them)" : ""}
+          </p>
+        ) : null}
+        <div>
+          <span className="text-sm font-medium">Rating</span>
+          <div className="mt-1">
+            <StarRating value={v.rating} onChange={(r) => set("rating", r)} />
+          </div>
         </div>
         <div>
           <span className="text-sm font-medium">Good for</span>

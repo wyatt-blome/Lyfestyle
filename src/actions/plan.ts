@@ -7,6 +7,7 @@ import { getDb, schema } from "@/db";
 import type { MealPlan } from "@/db/schema";
 import { isIsoDate, todayIn } from "@/lib/dates";
 import { recipeImageSrc } from "@/lib/images";
+import { recipeTime } from "@/lib/time";
 import type { MealType } from "@/lib/moods";
 import { rankForSlot } from "@/lib/planner";
 import { requireViewer } from "@/server/auth";
@@ -53,6 +54,8 @@ export interface SwapOption {
   title: string;
   imageUrl: string | null;
   totalMinutes: number | null;
+  timeEstimated: boolean;
+  rating: number | null;
   isFavorite: boolean;
   isStaple: boolean;
   reasons: string[];
@@ -92,7 +95,9 @@ export async function swapOptions(mealId: string): Promise<Result<SwapOption[]>>
         id: r.id,
         title: r.title,
         imageUrl: recipeImageSrc(r),
-        totalMinutes: r.totalMinutes,
+        totalMinutes: recipeTime(r)?.total ?? null,
+        timeEstimated: recipeTime(r)?.estimated ?? false,
+        rating: r.rating,
         isFavorite: r.isFavorite,
         isStaple: r.isStaple,
         reasons: s.reasons.filter((x) => x !== "Already this week"),

@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/ui";
 import { recipeImageSrc } from "@/lib/images";
 import { inferMealTypes } from "@/lib/moods";
+import { recipeTime } from "@/lib/time";
 import { requireViewer } from "@/server/auth";
 import { householdRecipes } from "@/server/data";
 import { RecipeLibrary } from "./RecipeLibrary";
@@ -27,7 +28,10 @@ export default async function RecipesPage() {
             imageUrl: recipeImageSrc(r),
             tags: r.tags,
             mealTypes: r.mealTypes.length ? r.mealTypes : inferMealTypes(r),
-            totalMinutes: r.totalMinutes,
+            minutes: recipeTime(r)?.total ?? null,
+            minutesEstimated: recipeTime(r)?.estimated ?? false,
+            rating: r.rating,
+            createdAt: r.createdAt.toISOString(),
             isFavorite: r.isFavorite,
             isStaple: r.isStaple,
             needsIngredients: r.ingredients.length === 0,

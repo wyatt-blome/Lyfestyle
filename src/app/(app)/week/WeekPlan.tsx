@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { addMeal, approvePlan, removeMeal, swapMeal, swapOptions, updateMeal, type SwapOption } from "@/actions/plan";
 import { Icon } from "@/components/icons";
+import { StarsShown } from "@/components/Stars";
 import { Button, Card, cx, ErrorText, inputClass, Sheet, Stepper } from "@/components/ui";
 import type { WeekRequestJson } from "@/db/schema";
 import { dayName } from "@/lib/dates";
 import { MOODS_BY_ID, type MealType } from "@/lib/moods";
+import { formatMinutes } from "@/lib/time";
 
 export interface RecipeLite {
   id: string;
@@ -16,6 +18,8 @@ export interface RecipeLite {
   imageUrl: string | null;
   mealTypes: string[];
   totalMinutes: number | null;
+  timeEstimated: boolean;
+  rating: number | null;
   isFavorite: boolean;
   isStaple: boolean;
 }
@@ -291,6 +295,7 @@ function MealCard({
             <p className="text-muted">No meal picked yet</p>
           )}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+            {meal.recipe?.rating ? <StarsShown rating={meal.recipe.rating} /> : null}
             {meal.recipe?.isFavorite ? (
               <span className="flex items-center gap-1 text-accent">
                 <Icon name="heart" filled className="size-3.5" /> Favorite
@@ -303,7 +308,8 @@ function MealCard({
             ) : null}
             {meal.recipe?.totalMinutes ? (
               <span className="flex items-center gap-1">
-                <Icon name="clock" className="size-3.5" /> {meal.recipe.totalMinutes} min
+                <Icon name="clock" className="size-3.5" /> {meal.recipe.timeEstimated ? "~" : ""}
+                {formatMinutes(meal.recipe.totalMinutes)}
               </span>
             ) : null}
             <span>
@@ -392,7 +398,10 @@ function SwapBody({ meal, recipes, onPick }: { meal: MealView; recipes: RecipeLi
     return recipes.filter((r) => r.title.toLowerCase().includes(q) && r.id !== meal.recipe?.id).slice(0, 30);
   }, [query, recipes, meal]);
 
-  const row = (r: { id: string; title: string; imageUrl: string | null; totalMinutes: number | null; isFavorite: boolean }, reasons?: string[]) => (
+  const row = (
+    r: { id: string; title: string; imageUrl: string | null; totalMinutes: number | null; timeEstimated: boolean; rating: number | null; isFavorite: boolean },
+    reasons?: string[],
+  ) => (
     <li key={r.id}>
       <button type="button" onClick={() => onPick(r.id)} className="flex w-full items-center gap-3 rounded-2xl p-2 text-left hover:bg-surface-2">
         <Thumb src={r.imageUrl} className="size-14 shrink-0 rounded-xl" />
@@ -401,6 +410,12 @@ function SwapBody({ meal, recipes, onPick }: { meal: MealView; recipes: RecipeLi
             {r.isFavorite ? <Icon name="heart" filled className="size-3.5 shrink-0 text-accent" /> : null}
             <span className="line-clamp-2">{r.title}</span>
           </span>
+          {r.rating || r.totalMinutes ? (
+            <span className="flex items-center gap-2 text-xs text-muted">
+              <StarsShown rating={r.rating} />
+              {r.totalMinutes ? `${r.timeEstimated ? "~" : ""}${formatMinutes(r.totalMinutes)}` : null}
+            </span>
+          ) : null}
           {reasons?.length ? (
             <span className="mt-1 flex flex-wrap gap-1">
               {reasons.slice(0, 3).map((x) => (
@@ -415,8 +430,6 @@ function SwapBody({ meal, recipes, onPick }: { meal: MealView; recipes: RecipeLi
                 </span>
               ))}
             </span>
-          ) : r.totalMinutes ? (
-            <span className="text-xs text-muted">{r.totalMinutes} min</span>
           ) : null}
         </span>
         <Icon name="chevronRight" className="size-4 text-muted" />

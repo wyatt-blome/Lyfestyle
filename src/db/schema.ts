@@ -77,6 +77,8 @@ export const recipes = pgTable(
     tags: jsonb("tags").$type<string[]>().notNull().default([]),
     mealTypes: jsonb("meal_types").$type<string[]>().notNull().default(["dinner"]),
     notes: text("notes"),
+    /** household rating, 1-5 stars; null = not rated yet */
+    rating: integer("rating"),
     isFavorite: boolean("is_favorite").notNull().default(false),
     isStaple: boolean("is_staple").notNull().default(false),
     stapleEveryWeeks: integer("staple_every_weeks"),

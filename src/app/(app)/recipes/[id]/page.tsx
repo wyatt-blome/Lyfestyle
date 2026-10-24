@@ -7,6 +7,7 @@ import { isSectionHeader } from "@/lib/ingredients/parse";
 import { recipeImageSrc } from "@/lib/images";
 import { inferMealTypes } from "@/lib/moods";
 import { shortDate } from "@/lib/dates";
+import { formatMinutes, recipeTime } from "@/lib/time";
 import { requireViewer } from "@/server/auth";
 import { RecipeActions } from "./RecipeActions";
 
@@ -21,6 +22,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
     .limit(1);
   if (!r) notFound();
   const img = recipeImageSrc(r);
+  const time = recipeTime(r);
   const mealTypes = r.mealTypes.length ? r.mealTypes : inferMealTypes(r);
   let host: string | null = null;
   try {
@@ -42,16 +44,25 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         <h1 className="font-display text-3xl font-semibold leading-tight">{r.title}</h1>
         <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
           {r.servings ? <span>Serves {r.servings}</span> : null}
-          {r.prepMinutes ? <span>Prep {r.prepMinutes} min</span> : null}
-          {r.cookMinutes ? <span>Cook {r.cookMinutes} min</span> : null}
-          {!r.prepMinutes && !r.cookMinutes && r.totalMinutes ? <span>{r.totalMinutes} min</span> : null}
+          {time ? (
+            <span className="flex items-center gap-1 font-medium text-ink">
+              <Icon name="clock" className="size-4" /> {formatMinutes(time.total, time.estimated)}
+              {time.prep && time.cook ? (
+                <span className="font-normal text-muted">
+                  {" "}
+                  ({time.estimated ? "~" : ""}
+                  {formatMinutes(time.prep)} prep, {formatMinutes(time.cook)} cook)
+                </span>
+              ) : null}
+            </span>
+          ) : null}
           <span className="capitalize">{mealTypes.join(", ")}</span>
           {r.lastPlannedOn ? <span>Last planned {shortDate(r.lastPlannedOn)}</span> : null}
         </p>
         {r.description ? <p className="mt-3 leading-relaxed">{r.description}</p> : null}
       </header>
 
-      <RecipeActions id={r.id} isFavorite={r.isFavorite} isStaple={r.isStaple} stapleEveryWeeks={r.stapleEveryWeeks} mealTypes={mealTypes} />
+      <RecipeActions id={r.id} rating={r.rating} isFavorite={r.isFavorite} isStaple={r.isStaple} stapleEveryWeeks={r.stapleEveryWeeks} mealTypes={mealTypes} />
 
       <section>
         <h2 className="mb-2 font-display text-xl font-semibold">Ingredients</h2>
