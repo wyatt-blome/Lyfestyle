@@ -129,6 +129,8 @@ export async function importRecipeFile(json: string): Promise<Result<{ added: nu
       rating: r.rating ?? null,
     });
     if (saved.ok) {
+      // Names in a recipe file were written by a person, so they're kept as they are.
+      await db.update(schema.recipes).set({ titleByHand: true }).where(eq(schema.recipes.id, saved.value.id));
       added++;
       existing.add(r.title.trim().toLowerCase());
     } else invalid++;

@@ -16,7 +16,7 @@ export default async function NameRecipesPage() {
   const viewer = await requireViewer();
   const all = await householdRecipes(viewer.household.id);
   // Names that look broken first, then everything else that was read from a photo or pasted text.
-  const flagged = all.filter((r) => looksLikeBadTitle(r.title));
+  const flagged = all.filter((r) => !r.titleByHand && looksLikeBadTitle(r.title));
   const others = all.filter((r) => !flagged.includes(r) && (r.sourceType === "photo" || r.sourceType === "text"));
   const list = [...flagged, ...others];
 

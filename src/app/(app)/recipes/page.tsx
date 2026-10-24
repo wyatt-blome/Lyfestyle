@@ -15,7 +15,7 @@ import { RecipeLibrary } from "./RecipeLibrary";
 export default async function RecipesPage() {
   const viewer = await requireViewer();
   const recipes = await householdRecipes(viewer.household.id);
-  const needNames = recipes.filter((r) => looksLikeBadTitle(r.title)).length;
+  const needNames = recipes.filter((r) => !r.titleByHand && looksLikeBadTitle(r.title)).length;
   const db = await getDb();
   const photoCounts = new Map(
     (
@@ -76,7 +76,7 @@ export default async function RecipesPage() {
                 minutes: time?.total ?? null,
                 totalMinutes: time?.total ?? null,
                 needsIngredients: r.ingredients.length === 0,
-                needsName: looksLikeBadTitle(r.title),
+                needsName: !r.titleByHand && looksLikeBadTitle(r.title),
                 photoCount: photoCounts.get(r.id) ?? 0,
               }),
             };
