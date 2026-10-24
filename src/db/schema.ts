@@ -174,6 +174,21 @@ export const groceryItems = pgTable(
   (t) => [index("grocery_items_plan_idx").on(t.planId)],
 );
 
+/** The original photos a recipe was read from (one per page), kept so the paper can be checked. */
+export const recipePhotos = pgTable(
+  "recipe_photos",
+  {
+    id: id(),
+    recipeId: text("recipe_id")
+      .notNull()
+      .references(() => recipes.id, { onDelete: "cascade" }),
+    position: integer("position").notNull().default(0),
+    /** JPEG data URL, about 1400px on the long side */
+    data: text("data").notNull(),
+  },
+  (t) => [index("recipe_photos_recipe_idx").on(t.recipeId)],
+);
+
 /** "Can we have …?" A household member asks for a recipe, or describes an idea. */
 export const mealRequests = pgTable(
   "meal_requests",

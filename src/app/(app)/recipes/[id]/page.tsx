@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb, schema } from "@/db";
@@ -24,6 +24,11 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
     .limit(1);
   if (!r) notFound();
   const img = recipeImageSrc(r);
+  const pages = await db
+    .select({ id: schema.recipePhotos.id })
+    .from(schema.recipePhotos)
+    .where(eq(schema.recipePhotos.recipeId, r.id))
+    .orderBy(asc(schema.recipePhotos.position));
   const time = recipeTime(r);
   const thisWeek = currentWeekStart(viewer.household.settings);
   const mealTypes = r.mealTypes.length ? r.mealTypes : inferMealTypes(r);
@@ -39,7 +44,16 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
       <Link href="/recipes" className="flex items-center gap-1 self-start text-sm text-muted">
         <Icon name="chevronLeft" className="size-4" /> Recipes
       </Link>
-      {img ? (
+      {pages.length ? (
+        <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          {pages.map((p, i) => (
+            <a key={p.id} href={`/api/recipe-photo/${p.id}`} target="_blank" rel="noreferrer" className="shrink-0 snap-start">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`/api/recipe-photo/${p.id}`} alt={`Page ${i + 1} of the original recipe`} className="h-64 rounded-2xl border border-line bg-white object-contain" />
+            </a>
+          ))}
+        </div>
+      ) : img ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={img} alt="" referrerPolicy="no-referrer" className="aspect-[16/10] w-full rounded-3xl object-cover" />
       ) : null}
@@ -65,6 +79,12 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         {r.description ? <p className="mt-3 leading-relaxed">{r.description}</p> : null}
       </header>
 
+      <Link
+        href={`/recipes/${r.id}/cook`}
+        className="flex h-14 items-center justify-center gap-2 rounded-full bg-brand text-lg font-medium text-brand-ink"
+      >
+        <Icon name="clock" /> Start cooking
+      </Link>
       <RequestMealButton
         recipes={[]}
         recipe={{ id: r.id, title: r.title, imageUrl: img }}

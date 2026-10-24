@@ -40,8 +40,11 @@ export function RecipeEditor({
   id,
   notice,
   onSaved,
+  photos,
 }: {
   initial: EditorValue;
+  /** original page photos to keep with a new recipe */
+  photos?: string[];
   id?: string;
   notice?: string | null;
   /** when set, saving calls this instead of opening the recipe */
@@ -98,6 +101,7 @@ export function RecipeEditor({
           totalMinutes: v.prepMinutes || v.cookMinutes ? (v.prepMinutes ?? 0) + (v.cookMinutes ?? 0) : v.totalMinutes,
         },
         id,
+        id ? [] : (photos ?? []),
       );
       if (!res.ok) setError(res.error);
       else if (onSaved) onSaved(res.value.id);

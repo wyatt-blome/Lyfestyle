@@ -1,19 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useOptimistic, useState, startTransition } from "react";
+import { startTransition, useMemo, useOptimistic, useState } from "react";
 import { setFavorite } from "@/actions/recipes";
 import { Icon } from "@/components/icons";
 import { StarsShown } from "@/components/Stars";
-import { Chip, cx, inputClass } from "@/components/ui";
+import { cx, inputClass } from "@/components/ui";
+import { CATEGORIES } from "@/lib/categories";
 import { formatMinutes } from "@/lib/time";
 
 export interface LibraryRecipe {
   id: string;
   title: string;
-  imageUrl: string | null;
   tags: string[];
-  mealTypes: string[];
   /** total time, given or estimated */
   minutes: number | null;
   minutesEstimated: boolean;
@@ -21,26 +20,15 @@ export interface LibraryRecipe {
   createdAt: string;
   isFavorite: boolean;
   isStaple: boolean;
-  needsIngredients: boolean;
   lastPlannedOn: string | null;
+  /** category ids from lib/categories */
+  categories: string[];
 }
 
-const FILTERS = [
-  { id: "all", label: "All" },
-  { id: "favorites", label: "Favorites" },
-  { id: "staples", label: "Staples" },
-  { id: "top", label: "4★ and up" },
-  { id: "breakfast", label: "Breakfast" },
-  { id: "lunch", label: "Lunch" },
-  { id: "dinner", label: "Dinner" },
-  { id: "quick", label: "30 min or less" },
-  { id: "fix", label: "Needs ingredients" },
-] as const;
-
 const SORTS = [
+  { id: "name", label: "A to Z" },
   { id: "rating", label: "Top rated" },
   { id: "quick", label: "Quickest" },
-  { id: "name", label: "A to Z" },
   { id: "new", label: "Newest" },
   { id: "stale", label: "Not made lately" },
 ] as const;
@@ -65,50 +53,56 @@ function sortRecipes(list: LibraryRecipe[], sort: Sort): LibraryRecipe[] {
   }
 }
 
+const GROUPS = [...new Set(CATEGORIES.map((c) => c.group))];
+
 export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("all");
   const [sort, setSort] = useState<Sort>("name");
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
   const [favs, toggleFav] = useOptimistic(new Map(recipes.map((r) => [r.id, r.isFavorite])), (state, id: string) => {
     const next = new Map(state);
     next.set(id, !state.get(id));
     return next;
   });
 
+  // How many recipes are in each category, so empty ones can be left out of the menu.
+  const counts = useMemo(() => {
+    const c = new Map<string, number>();
+    for (const r of recipes) for (const id of r.categories) c.set(id, (c.get(id) ?? 0) + 1);
+    return c;
+  }, [recipes]);
+
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     const matches = recipes.filter((r) => {
       if (q && !r.title.toLowerCase().includes(q) && !r.tags.some((t) => t.includes(q))) return false;
-      switch (filter) {
-        case "favorites":
-          return favs.get(r.id);
-        case "staples":
-          return r.isStaple;
-        case "breakfast":
-        case "lunch":
-        case "dinner":
-          return r.mealTypes.includes(filter);
-        case "top":
-          return (r.rating ?? 0) >= 4;
-        case "quick":
-          return r.minutes !== null && r.minutes <= 30;
-        case "fix":
-          return r.needsIngredients;
-        default:
-          return true;
-      }
+      if (category === "favorites") return favs.get(r.id);
+      if (category !== "all") return r.categories.includes(category);
+      return true;
     });
     return sortRecipes(matches, sort);
-  }, [recipes, query, filter, favs, sort]);
+  }, [recipes, query, category, favs, sort]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex gap-2">
-        <div className="relative min-w-0 flex-1">
-          <Icon name="search" className="pointer-events-none absolute left-3 top-3 size-5 text-muted" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search recipes or tags" className={cx(inputClass, "pl-10")} />
-        </div>
-        <select aria-label="Sort by" value={sort} onChange={(e) => setSort(e.target.value as Sort)} className={cx(inputClass, "w-auto shrink-0 pr-8")}>
+    <div className="flex flex-col gap-3">
+      <div className="relative">
+        <Icon name="search" className="pointer-events-none absolute left-3 top-3 size-5 text-muted" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search recipes" className={cx(inputClass, "pl-10")} />
+      </div>
+      <div className="grid grid-cols-[1fr_auto] gap-2">
+        <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} className={inputClass}>
+          <option value="all">All recipes ({recipes.length})</option>
+          {GROUPS.map((g) => (
+            <optgroup key={g} label={g}>
+              {CATEGORIES.filter((c) => c.group === g && (counts.get(c.id) || c.id === "favorites")).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label} ({c.id === "favorites" ? [...favs.values()].filter(Boolean).length : counts.get(c.id)})
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <select aria-label="Sort by" value={sort} onChange={(e) => setSort(e.target.value as Sort)} className={cx(inputClass, "w-auto pr-8")}>
           {SORTS.map((o) => (
             <option key={o.id} value={o.id}>
               {o.label}
@@ -116,44 +110,29 @@ export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
           ))}
         </select>
       </div>
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
-        {FILTERS.filter((f) => f.id !== "fix" || recipes.some((r) => r.needsIngredients)).map((f) => (
-          <Chip key={f.id} selected={filter === f.id} onClick={() => setFilter(f.id)} className="shrink-0">
-            {f.label}
-          </Chip>
-        ))}
-      </div>
+
       {shown.length ? (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
           {shown.map((r) => (
-            <li key={r.id} className="relative">
-              <Link href={`/recipes/${r.id}`} className="block overflow-hidden rounded-2xl border border-line bg-surface">
-                {r.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={r.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" className="aspect-[4/3] w-full object-cover" />
-                ) : (
-                  <div className="grid aspect-[4/3] w-full place-items-center bg-brand-soft text-brand">
-                    <Icon name="leaf" className="size-8" />
-                  </div>
-                )}
-                <div className="p-3">
-                  <p className="line-clamp-2 text-sm font-medium leading-snug">{r.title}</p>
+            <li key={r.id} className="flex items-center">
+              <Link href={`/recipes/${r.id}`} className="min-w-0 flex-1 px-4 py-3">
+                <p className="font-medium leading-snug">{r.title}</p>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted">
                   {r.rating ? <StarsShown rating={r.rating} /> : null}
-                  <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted">
-                    {r.isStaple ? (
-                      <span className="flex items-center gap-0.5 text-brand">
-                        <Icon name="repeat" className="size-3" /> Staple
-                      </span>
-                    ) : null}
-                    {r.minutes ? (
-                      <span title={r.minutesEstimated ? "Estimated from the steps" : undefined}>
-                        {r.minutesEstimated ? "~" : ""}
-                        {formatMinutes(r.minutes)}
-                      </span>
-                    ) : null}
-                    {r.needsIngredients ? <span className="text-warn">Needs ingredients</span> : null}
-                  </p>
-                </div>
+                  {r.minutes ? (
+                    <span title={r.minutesEstimated ? "Estimated from the steps" : undefined}>
+                      {r.minutesEstimated ? "~" : ""}
+                      {formatMinutes(r.minutes)}
+                    </span>
+                  ) : null}
+                  {r.isStaple ? (
+                    <span className="flex items-center gap-0.5 text-brand">
+                      <Icon name="repeat" className="size-3" /> Staple
+                    </span>
+                  ) : null}
+                  {r.categories.includes("fix-ingredients") ? <span className="text-warn">Needs ingredients</span> : null}
+                  {r.categories.includes("fix-name") ? <span className="text-warn">Needs a name</span> : null}
+                </p>
               </Link>
               <button
                 type="button"
@@ -165,7 +144,7 @@ export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
                     await setFavorite(r.id, !favs.get(r.id));
                   })
                 }
-                className="absolute right-2 top-2 grid size-9 place-items-center rounded-full bg-surface/90 shadow-sm backdrop-blur"
+                className="grid size-12 shrink-0 place-items-center"
               >
                 <Icon name="heart" filled={favs.get(r.id)} className={cx("size-5", favs.get(r.id) ? "text-accent" : "text-muted")} />
               </button>

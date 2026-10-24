@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/ui";
-import { recipeImageSrc } from "@/lib/images";
+import { categoriesOf } from "@/lib/categories";
 import { looksLikeBadTitle } from "@/lib/import/title";
 import { inferMealTypes } from "@/lib/moods";
 import { recipeTime } from "@/lib/time";
@@ -33,21 +33,30 @@ export default async function RecipesPage() {
       ) : null}
       {recipes.length ? (
         <RecipeLibrary
-          recipes={recipes.map((r) => ({
-            id: r.id,
-            title: r.title,
-            imageUrl: recipeImageSrc(r),
-            tags: r.tags,
-            mealTypes: r.mealTypes.length ? r.mealTypes : inferMealTypes(r),
-            minutes: recipeTime(r)?.total ?? null,
-            minutesEstimated: recipeTime(r)?.estimated ?? false,
-            rating: r.rating,
-            createdAt: r.createdAt.toISOString(),
-            isFavorite: r.isFavorite,
-            isStaple: r.isStaple,
-            needsIngredients: r.ingredients.length === 0,
-            lastPlannedOn: r.lastPlannedOn,
-          }))}
+          recipes={recipes.map((r) => {
+            const time = recipeTime(r);
+            const mealTypes = r.mealTypes.length ? r.mealTypes : inferMealTypes(r);
+            return {
+              id: r.id,
+              title: r.title,
+              tags: r.tags,
+              minutes: time?.total ?? null,
+              minutesEstimated: time?.estimated ?? false,
+              rating: r.rating,
+              createdAt: r.createdAt.toISOString(),
+              isFavorite: r.isFavorite,
+              isStaple: r.isStaple,
+              lastPlannedOn: r.lastPlannedOn,
+              categories: categoriesOf({
+                ...r,
+                mealTypes,
+                minutes: time?.total ?? null,
+                totalMinutes: time?.total ?? null,
+                needsIngredients: r.ingredients.length === 0,
+                needsName: looksLikeBadTitle(r.title),
+              }),
+            };
+          })}
         />
       ) : (
         <EmptyState icon="book" title="Your recipe box is empty">

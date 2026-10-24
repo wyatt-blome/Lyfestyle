@@ -323,6 +323,14 @@ function MealCard({
         <Button size="sm" variant="ghost" onClick={onSwap} disabled={busy} className="text-brand">
           <Icon name="swap" className="size-4" /> {meal.recipe ? "Swap" : "Choose"}
         </Button>
+        {meal.recipe ? (
+          <Link
+            href={`/recipes/${meal.recipe.id}/cook?servings=${meal.servings + meal.extraServings}`}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-sm font-medium hover:bg-surface-2"
+          >
+            <Icon name="clock" className="size-4" /> Cook
+          </Link>
+        ) : null}
         <Button size="sm" variant="ghost" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           More
         </Button>

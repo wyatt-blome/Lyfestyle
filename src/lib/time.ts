@@ -37,6 +37,27 @@ export function stepMinutes(steps: string[]): number {
   return Math.round(total);
 }
 
+export interface StepTimer {
+  /** what the step says, e.g. "20-25 minutes" */
+  label: string;
+  /** seconds to count down (the longer end of a range) */
+  seconds: number;
+}
+
+/** Times mentioned in one step, for one-tap timers; per-side times count too. */
+export function stepTimers(step: string): StepTimer[] {
+  const timers: StepTimer[] = [];
+  const any = new RegExp(String.raw`\b(${NUM})(?:\s*(?:-|–|to)\s*(${NUM}))?\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b`, "gi");
+  for (const m of step.matchAll(any)) {
+    const n = amount(m[2] ?? m[1]);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    const unit = m[3].toLowerCase();
+    const seconds = Math.round(unit.startsWith("h") ? n * 3600 : unit.startsWith("s") ? n : n * 60);
+    if (seconds > 0 && seconds <= 24 * 3600) timers.push({ label: m[0].trim(), seconds });
+  }
+  return timers;
+}
+
 /** Hands-on time for the ingredient list: chopping takes longer than measuring. */
 export function prepEstimate(ingredients: string[]): number {
   let minutes = 5;

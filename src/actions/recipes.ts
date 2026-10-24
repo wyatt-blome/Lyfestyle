@@ -193,7 +193,10 @@ function clean(input: z.output<typeof RecipeInput>) {
   };
 }
 
-export async function saveRecipe(input: RecipeInput, id?: string): Promise<Result<{ id: string }>> {
+const Photos = z.array(z.string().max(1_600_000).regex(/^data:image\/(jpeg|png|webp);base64,/)).max(8);
+
+/** Save a recipe. `photos` (new recipes only) are the original pages it was read from. */
+export async function saveRecipe(input: RecipeInput, id?: string, photos: string[] = []): Promise<Result<{ id: string }>> {
   const viewer = await requireViewer();
   const parsed = RecipeInput.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the recipe." };
@@ -213,6 +216,10 @@ export async function saveRecipe(input: RecipeInput, id?: string): Promise<Resul
     .insert(schema.recipes)
     .values({ ...values, householdId: viewer.household.id, createdBy: viewer.user.name })
     .returning({ id: schema.recipes.id });
+  const pages = Photos.safeParse(photos);
+  if (pages.success && pages.data.length) {
+    await db.insert(schema.recipePhotos).values(pages.data.map((data, position) => ({ recipeId: row.id, position, data })));
+  }
   revalidatePath("/recipes");
   return { ok: true, value: row };
 }

@@ -15,6 +15,8 @@ interface Photo {
   id: string;
   file: File;
   thumb: string;
+  /** readable copy of the page, kept with the recipe */
+  page: string;
   status: "waiting" | "reading" | "done" | "error";
   progress: number;
   parts: RecipePart[];
@@ -80,7 +82,15 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
     const added: Photo[] = [];
     for (const file of Array.from(files)) {
       try {
-        added.push({ id: crypto.randomUUID(), file, thumb: await downscale(file, 480, 0.75), status: "waiting", progress: 0, parts: [] });
+        added.push({
+          id: crypto.randomUUID(),
+          file,
+          thumb: await downscale(file, 480, 0.75),
+          page: await downscale(file, 1400, 0.7),
+          status: "waiting",
+          progress: 0,
+          parts: [],
+        });
       } catch {
         setError("One of those files couldn't be opened. Use JPEG or PNG photos.");
       }
@@ -154,7 +164,11 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
     for (let g = 0; g < groups.length; g++) {
       if (saved[g]) continue;
       const group = groups[g];
-      const res = await saveRecipe({ ...toEditor({ ...group.recipe, title: titles[g]?.trim() || group.recipe.title }, photos[group.pages[0]]?.thumb ?? null), mealTypes: [] });
+      const res = await saveRecipe(
+        { ...toEditor({ ...group.recipe, title: titles[g]?.trim() || group.recipe.title }, photos[group.pages[0]]?.thumb ?? null), mealTypes: [] },
+        undefined,
+        group.pages.map((pg) => photos[pg].page),
+      );
       if (res.ok) setSaved((s) => ({ ...s, [g]: res.value.id }));
       else setError(`“${group.recipe.title}”: ${res.error}`);
     }
@@ -176,6 +190,7 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
         </div>
         <RecipeEditor
           initial={toEditor({ ...group.recipe, title: titles[editing]?.trim() || group.recipe.title }, photos[group.pages[0]]?.thumb ?? null)}
+          photos={group.pages.map((pg) => photos[pg].page)}
           notice="Read from your photos. Check the amounts before saving."
           onSaved={(id) => {
             setSaved((s) => ({ ...s, [editing]: id }));
