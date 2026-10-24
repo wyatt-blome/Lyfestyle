@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, eq, inArray, isNotNull, notInArray, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, notInArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, schema } from "@/db";
@@ -82,7 +82,7 @@ const FileRecipe = z.object({
  * Bring in a recipe file (JSON: { "recipes": [...] }), e.g. one prepared from a stack of photos.
  * Recipes whose name is already in the library are skipped.
  */
-export async function importRecipeFile(json: string): Promise<Result<{ added: number; skipped: string[]; invalid: number }>> {
+export async function importRecipeFile(json: string): Promise<Result<{ added: number; replaced: number; skipped: string[]; invalid: number }>> {
   const viewer = await requireViewer();
   let data: unknown;
   try {
@@ -94,12 +94,18 @@ export async function importRecipeFile(json: string): Promise<Result<{ added: nu
   if (!Array.isArray(list) || !list.length) return { ok: false, error: "No recipes found in that file." };
   if (list.length > 2000) return { ok: false, error: "That file has too many recipes; split it into smaller files." };
   const db = await getDb();
-  const existing = new Set(
-    (await db.select({ title: schema.recipes.title }).from(schema.recipes).where(eq(schema.recipes.householdId, viewer.household.id))).map((r) =>
-      r.title.trim().toLowerCase(),
-    ),
+  // A recipe with the same name that was read from a photo is replaced by the file's copy (its
+  // rating, favorite and plans stay); one added by hand or from a link is left alone.
+  const existing = new Map(
+    (
+      await db
+        .select({ id: schema.recipes.id, title: schema.recipes.title, sourceType: schema.recipes.sourceType })
+        .from(schema.recipes)
+        .where(eq(schema.recipes.householdId, viewer.household.id))
+    ).map((r) => [r.title.trim().toLowerCase(), r]),
   );
   let added = 0;
+  let replaced = 0;
   let invalid = 0;
   const skipped: string[] = [];
   for (const raw of list) {
@@ -109,8 +115,33 @@ export async function importRecipeFile(json: string): Promise<Result<{ added: nu
       continue;
     }
     const r = parsed.data;
-    if (existing.has(r.title.trim().toLowerCase())) {
+    const same = existing.get(r.title.trim().toLowerCase());
+    if (same && !SCANNED.includes(same.sourceType)) {
       skipped.push(r.title);
+      continue;
+    }
+    if (same) {
+      await db
+        .update(schema.recipes)
+        .set({
+          title: tidyTitle(r.title),
+          description: r.description ?? null,
+          servings: r.servings ?? null,
+          prepMinutes: r.prepMinutes ?? null,
+          cookMinutes: r.cookMinutes ?? null,
+          totalMinutes: null,
+          ingredients: r.ingredients,
+          steps: r.steps,
+          tags: r.tags,
+          mealTypes: r.mealTypes,
+          notes: r.notes ?? null,
+          sourceUrl: r.sourceUrl ?? null,
+          titleByHand: true,
+          readWith: "claude",
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.recipes.id, same.id));
+      replaced++;
       continue;
     }
     const saved = await saveRecipe({
@@ -131,13 +162,45 @@ export async function importRecipeFile(json: string): Promise<Result<{ added: nu
     });
     if (saved.ok) {
       // Names in a recipe file were written by a person, so they're kept as they are.
-      await db.update(schema.recipes).set({ titleByHand: true }).where(eq(schema.recipes.id, saved.value.id));
+      await db.update(schema.recipes).set({ titleByHand: true, readWith: "claude" }).where(eq(schema.recipes.id, saved.value.id));
       added++;
-      existing.add(r.title.trim().toLowerCase());
+      existing.set(r.title.trim().toLowerCase(), { id: saved.value.id, title: r.title, sourceType: "photo" });
     } else invalid++;
   }
   revalidatePath("/recipes");
-  return { ok: true, value: { added, skipped, invalid } };
+  return { ok: true, value: { added, replaced, skipped, invalid } };
+}
+
+const SCANNED: string[] = ["photo", "text"];
+
+/** Recipes read from photos or pasted text whose names aren't in `titles` (a recipe file about to replace them). */
+async function scansNotIn(householdId: string, titles: string[]) {
+  const keep = new Set(titles.map((t) => t.trim().toLowerCase()));
+  const db = await getDb();
+  const rows = await db
+    .select({ id: schema.recipes.id, title: schema.recipes.title })
+    .from(schema.recipes)
+    .where(and(eq(schema.recipes.householdId, householdId), inArray(schema.recipes.sourceType, ["photo", "text"])));
+  return rows.filter((r) => !keep.has(r.title.trim().toLowerCase()));
+}
+
+export async function countScansNotIn(titles: string[]): Promise<number> {
+  const viewer = await requireViewer();
+  return (await scansNotIn(viewer.household.id, titles.slice(0, 2000))).length;
+}
+
+/** Clear out photo and pasted-text recipes before a recipe file replaces them. */
+export async function removeScansNotIn(titles: string[]): Promise<Result<{ deleted: number }>> {
+  const viewer = await requireViewer();
+  const old = await scansNotIn(viewer.household.id, titles.slice(0, 2000));
+  const db = await getDb();
+  for (let i = 0; i < old.length; i += 500) {
+    await db.delete(schema.recipes).where(inArray(schema.recipes.id, old.slice(i, i + 500).map((r) => r.id)));
+  }
+  // Their photos count as not imported any more, so they can be brought in again.
+  await db.delete(schema.importedPhotos).where(and(eq(schema.importedPhotos.householdId, viewer.household.id), isNull(schema.importedPhotos.recipeId)));
+  revalidatePath("/", "layout");
+  return { ok: true, value: { deleted: old.length } };
 }
 
 export async function photoImportAvailable(): Promise<boolean> {

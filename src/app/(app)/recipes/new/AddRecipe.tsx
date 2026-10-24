@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
-import { boardPins, importAndSave, importLink, importRecipeFile } from "@/actions/recipes";
+import { boardPins, countScansNotIn, importAndSave, importLink, importRecipeFile, removeScansNotIn } from "@/actions/recipes";
 import { Icon, type IconName } from "@/components/icons";
 import { RecipeEditor, type EditorValue } from "@/components/RecipeEditor";
 import { Button, Card, cx, ErrorText, inputClass, textareaClass } from "@/components/ui";
@@ -296,40 +296,122 @@ function BulkImport({ initial = "" }: { initial?: string }) {
   );
 }
 
+type FilePlan = { recipes: unknown[]; titles: string[]; oldScans: number };
+
+const FILE_BATCH = 20;
+
 function FileImport() {
+  const [plan, setPlan] = useState<FilePlan | null>(null);
+  const [clearOld, setClearOld] = useState(true);
+  const [progress, setProgress] = useState<string>();
   const [result, setResult] = useState<string>();
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
+
+  const pick = (file: File) =>
+    start(async () => {
+      setError(undefined);
+      setResult(undefined);
+      let data: unknown;
+      try {
+        data = JSON.parse(await file.text());
+      } catch {
+        return setError("That file isn't a recipe file (it isn't valid JSON).");
+      }
+      const recipes = Array.isArray(data) ? data : (data as { recipes?: unknown })?.recipes;
+      if (!Array.isArray(recipes) || !recipes.length) return setError("No recipes found in that file.");
+      const titles = recipes.map((r) => String((r as { title?: unknown })?.title ?? "")).filter(Boolean);
+      const oldScans = await countScansNotIn(titles);
+      setClearOld(true);
+      setPlan({ recipes, titles, oldScans });
+    });
+
+  // Sent in small batches so a big file can't time out halfway; a batch that's run twice just
+  // replaces the same recipes again.
+  const run = () =>
+    start(async () => {
+      if (!plan) return;
+      setError(undefined);
+      let removed = 0;
+      if (clearOld && plan.oldScans) {
+        setProgress("Removing the old photo recipes…");
+        const res = await removeScansNotIn(plan.titles);
+        if (!res.ok) return setError(res.error);
+        removed = res.value.deleted;
+      }
+      const total = { added: 0, replaced: 0, skipped: 0, invalid: 0 };
+      for (let i = 0; i < plan.recipes.length; i += FILE_BATCH) {
+        setProgress(`Importing ${Math.min(i + FILE_BATCH, plan.recipes.length)} of ${plan.recipes.length}…`);
+        const res = await importRecipeFile(JSON.stringify({ recipes: plan.recipes.slice(i, i + FILE_BATCH) })).catch(() => null);
+        if (!res?.ok) {
+          setProgress(undefined);
+          return setError(`${res?.error ?? "The connection dropped."} ${total.added + total.replaced} were saved; pick the file again to finish (nothing is added twice).`);
+        }
+        total.added += res.value.added;
+        total.replaced += res.value.replaced;
+        total.skipped += res.value.skipped.length;
+        total.invalid += res.value.invalid;
+      }
+      setProgress(undefined);
+      setPlan(null);
+      setResult(
+        [
+          removed ? `Removed ${removed} old photo recipe${removed === 1 ? "" : "s"}.` : "",
+          `Added ${total.added} recipe${total.added === 1 ? "" : "s"}.`,
+          total.replaced ? `Updated ${total.replaced} that were already there.` : "",
+          total.skipped ? `${total.skipped} skipped: a recipe you added another way has the same name.` : "",
+          total.invalid ? `${total.invalid} couldn't be read.` : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+    });
+
   return (
     <div className="rounded-2xl border border-dashed border-line p-3 text-sm">
       <p className="font-medium">Have a recipe file?</p>
       <p className="text-xs text-muted">A .json recipe file, such as one made from a stack of photos.</p>
-      <label className={cx("mt-2 inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-line bg-surface px-4 font-medium", pending && "opacity-60")}>
-        {pending ? <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <Icon name="plus" className="size-4" />}
-        Import a recipe file
-        <input
-          type="file"
-          accept=".json,application/json"
-          className="sr-only"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (!file) return;
-            start(async () => {
-              setError(undefined);
-              setResult(undefined);
-              const res = await importRecipeFile(await file.text());
-              if (!res.ok) return setError(res.error);
-              const { added, skipped, invalid } = res.value;
-              setResult(
-                [`Added ${added} recipe${added === 1 ? "" : "s"}.`, skipped.length ? `${skipped.length} already in your recipes.` : "", invalid ? `${invalid} couldn't be read.` : ""]
-                  .filter(Boolean)
-                  .join(" "),
-              );
-            });
-          }}
-        />
-      </label>
+      {plan ? (
+        <div className="mt-3 flex flex-col gap-3">
+          <p>
+            <strong>{plan.recipes.length}</strong> recipes in this file.
+          </p>
+          {plan.oldScans ? (
+            <label className="flex items-start gap-3 rounded-xl bg-warn-soft p-3">
+              <input type="checkbox" checked={clearOld} onChange={(e) => setClearOld(e.target.checked)} className="mt-0.5 size-5 accent-[var(--brand)]" />
+              <span>
+                First remove the <strong>{plan.oldScans}</strong> recipe{plan.oldScans === 1 ? "" : "s"} read from photos or pasted text that aren&apos;t in this file. Recipes
+                from links, Pinterest or typed by hand stay.
+              </span>
+            </label>
+          ) : null}
+          <p className="text-xs text-muted">Recipes already here with the same name are updated from the file; their stars, favorites and plans stay.</p>
+          {progress ? <p className="text-brand">{progress}</p> : null}
+          <div className="flex gap-2">
+            <Button variant="ghost" disabled={pending} onClick={() => setPlan(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" className="flex-1" busy={pending} onClick={run}>
+              Import {plan.recipes.length} recipes
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <label className={cx("mt-2 inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-line bg-surface px-4 font-medium", pending && "opacity-60")}>
+          {pending ? <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <Icon name="plus" className="size-4" />}
+          Import a recipe file
+          <input
+            type="file"
+            accept=".json,application/json"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) pick(file);
+            }}
+          />
+        </label>
+      )}
       {result ? (
         <p className="mt-2 text-brand">
           {result}{" "}
