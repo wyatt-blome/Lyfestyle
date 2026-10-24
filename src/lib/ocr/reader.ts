@@ -44,13 +44,16 @@ async function prepare(image: Blob): Promise<HTMLCanvasElement> {
   return canvas;
 }
 
-/** Read the text on one photo. `progress` gets 0..1 while it reads. */
-export async function readPhotoText(image: Blob, progress?: (p: number) => void): Promise<string> {
+/**
+ * Read the text on one photo. `progress` gets 0..1 while it reads. `confidence` (0-100) is the
+ * reader's own score; handwriting usually comes back well under 60.
+ */
+export async function readPhotoText(image: Blob, progress?: (p: number) => void): Promise<{ text: string; confidence: number }> {
   const worker = await getWorker();
   onProgress = progress ?? null;
   try {
     const { data } = await worker.recognize(await prepare(image));
-    return data.text;
+    return { text: data.text, confidence: data.confidence };
   } finally {
     onProgress = null;
   }

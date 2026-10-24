@@ -1,11 +1,13 @@
 "use server";
 
-import { and, eq, or } from "drizzle-orm";
+import { and, asc, eq, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, schema } from "@/db";
-import { aiAvailable, AiError, extractPageFromImage, extractRecipeFromImage } from "@/lib/import/ai";
-import type { RecipePart } from "@/lib/import/pages";
+import { aiAvailable, AiError, extractRecipeFromImage } from "@/lib/import/ai";
+import { buildGroups, type PagePart, type RecipePart } from "@/lib/import/pages";
+import { looksLikeBadTitle } from "@/lib/import/title";
+import { readPageOnce } from "@/server/photos";
 import { FetchError } from "@/lib/import/fetch";
 import { importFromUrl, listBoardPins, type ImportResult } from "@/lib/import/importUrl";
 import type { ImportedRecipe } from "@/lib/import/types";
@@ -43,14 +45,17 @@ export async function importPhoto(base64: string, mediaType: string): Promise<Re
   }
 }
 
-/** One photographed page read by Claude; the browser groups pages into recipes. */
-export async function readPhotoPage(base64: string, mediaType: string): Promise<Result<RecipePart[]>> {
-  await requireViewer();
+/**
+ * One photographed page read by Claude; the browser groups pages into recipes. `hash` is the
+ * original photo's fingerprint, so a photo added twice is only ever read once.
+ */
+export async function readPhotoPage(base64: string, mediaType: string, hash?: string): Promise<Result<RecipePart[]>> {
+  const viewer = await requireViewer();
   const type = z.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]).safeParse(mediaType);
   if (!type.success) return { ok: false, error: "Use a JPEG or PNG photo." };
   if (base64.length > 4_000_000) return { ok: false, error: "That photo is too large." };
   try {
-    return { ok: true, value: await extractPageFromImage({ base64, mediaType: type.data }) };
+    return { ok: true, value: await readPageOnce(viewer.household.id, { base64, mediaType: type.data }, hash) };
   } catch (e) {
     return failure(e);
   }
@@ -170,6 +175,7 @@ const RecipeInput = z.object({
   notes: z.string().max(5000).nullable().optional(),
   isFavorite: z.boolean().default(false),
   rating: z.number().int().min(1).max(5).nullable().optional(),
+  readWith: z.enum(["phone", "claude"]).nullable().optional(),
   isStaple: z.boolean().default(false),
   stapleEveryWeeks: z.number().int().min(1).max(12).nullable().optional(),
 });
@@ -203,9 +209,10 @@ export async function saveRecipe(input: RecipeInput, id?: string, photos: string
   const values = clean(parsed.data);
   const db = await getDb();
   if (id) {
+    // Saving in the editor confirms the name as it stands.
     const [row] = await db
       .update(schema.recipes)
-      .set({ ...values, updatedAt: new Date() })
+      .set({ ...values, updatedAt: new Date(), titleByHand: true })
       .where(and(eq(schema.recipes.id, id), eq(schema.recipes.householdId, viewer.household.id)))
       .returning({ id: schema.recipes.id });
     if (!row) return { ok: false, error: "Recipe not found." };
@@ -297,13 +304,75 @@ export async function renameRecipes(changes: { id: string; title: string }[]): P
   for (const c of parsed.data) {
     const rows = await db
       .update(schema.recipes)
-      .set({ title: c.title, updatedAt: new Date() })
+      // Renaming isn't editing: Claude may still fix the ingredients of an untouched recipe.
+      .set({ title: c.title, titleByHand: true })
       .where(and(eq(schema.recipes.id, c.id), eq(schema.recipes.householdId, viewer.household.id)))
       .returning({ id: schema.recipes.id });
     renamed += rows.length;
   }
   revalidatePath("/recipes");
   return { ok: true, value: { renamed } };
+}
+
+/**
+ * Read a photo recipe with Claude, once ever. Fixes a broken name, fills missing details, and
+ * replaces ingredients and steps the phone misread, unless the household has edited the recipe.
+ */
+export async function readRecipeWithClaude(id: string): Promise<Result<{ title: string; changed: string[]; skipped: boolean }>> {
+  const { viewer, db, recipe } = await ownRecipe(id);
+  if (!recipe) return { ok: false, error: "Recipe not found." };
+  if (recipe.readWith === "claude") return { ok: true, value: { title: recipe.title, changed: [], skipped: true } };
+  if (!aiAvailable()) return { ok: false, error: "Claude reading isn't switched on. Add ANTHROPIC_API_KEY in the app's settings." };
+  const stored = await db
+    .select({ data: schema.recipePhotos.data })
+    .from(schema.recipePhotos)
+    .where(eq(schema.recipePhotos.recipeId, id))
+    .orderBy(asc(schema.recipePhotos.position));
+  const images = stored.length ? stored.map((p) => p.data) : recipe.imageUrl?.startsWith("data:") ? [recipe.imageUrl] : [];
+  if (!images.length) return { ok: false, error: "No photo is saved with this recipe." };
+  try {
+    const parts: PagePart[] = [];
+    for (const [page, data] of images.entries()) {
+      const m = data.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);
+      if (!m) continue;
+      const read = await readPageOnce(viewer.household.id, { base64: m[2], mediaType: m[1] as "image/jpeg" });
+      parts.push(...read.map((p) => ({ ...p, page })));
+    }
+    // All pages belong to this one recipe.
+    const [group] = buildGroups(parts, parts.map((_, i) => i === 0));
+    const r = group?.recipe;
+    const changed: string[] = [];
+    const set: Partial<typeof schema.recipes.$inferInsert> = { readWith: "claude" };
+    if (r) {
+      const untouched = recipe.updatedAt.getTime() - recipe.createdAt.getTime() < 10_000;
+      // A name someone typed is kept; names the phone read are replaced.
+      if (r.title && r.title !== "Untitled recipe" && (looksLikeBadTitle(recipe.title) || !recipe.titleByHand)) {
+        set.title = r.title;
+        changed.push("name");
+      }
+      if (r.ingredients.length && (!recipe.ingredients.length || untouched)) {
+        set.ingredients = r.ingredients;
+        changed.push("ingredients");
+      }
+      if (r.steps.length && (!recipe.steps.length || untouched)) {
+        set.steps = r.steps;
+        changed.push("steps");
+      }
+      if (!recipe.servings && r.servings) set.servings = r.servings;
+      if (!recipe.prepMinutes && !recipe.cookMinutes && (r.prepMinutes || r.cookMinutes)) {
+        set.prepMinutes = r.prepMinutes;
+        set.cookMinutes = r.cookMinutes;
+        set.totalMinutes = (r.prepMinutes ?? 0) + (r.cookMinutes ?? 0);
+      }
+      if (!recipe.tags.length && r.tags.length) set.tags = r.tags.slice(0, 8);
+    }
+    await db.update(schema.recipes).set(set).where(eq(schema.recipes.id, id));
+    revalidatePath("/recipes");
+    revalidatePath(`/recipes/${id}`);
+    return { ok: true, value: { title: set.title ?? recipe.title, changed, skipped: false } };
+  } catch (e) {
+    return failure(e);
+  }
 }
 
 export async function setRating(id: string, rating: number | null) {

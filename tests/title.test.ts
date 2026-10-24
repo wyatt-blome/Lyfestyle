@@ -33,6 +33,26 @@ describe("finding the dish name", () => {
   });
 });
 
+describe("unreadable pages", () => {
+  it("scores reader noise low and real text high", async () => {
+    const { textQuality } = await import("@/lib/import/pages");
+    expect(textQuality("$Hich Qoder L o Shclls 3 cwp mix Sa1t pXrka Qepr ~~ ,.. vv")).toBeLessThan(0.6);
+    expect(textQuality("Grandma's Pot Roast\nIngredients\n3 lb chuck roast\n2 tablespoons vegetable oil\nDirections\nBrown the roast on all sides.")).toBeGreaterThan(0.8);
+  });
+
+  it("keeps unreadable pages apart and unnamed", async () => {
+    const { unreadablePart } = await import("@/lib/import/pages");
+    const parts: PagePart[] = [
+      { ...unreadablePart(), page: 0 },
+      { ...unreadablePart(), page: 1 },
+    ];
+    const groups = buildGroups(parts, defaultBreaks(parts));
+    expect(groups).toHaveLength(2);
+    expect(groups[0].unreadable).toBe(true);
+    expect(groups[0].recipe.title).toBe("");
+  });
+});
+
 describe("helpers", () => {
   it("cleans", () => {
     expect(cleanTitleText("++*Grandma's Chili**")).toBe("Grandma's Chili");

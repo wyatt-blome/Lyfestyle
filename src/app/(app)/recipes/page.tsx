@@ -22,13 +22,18 @@ export default async function RecipesPage() {
   return (
     <>
       <PageHeader title="Recipes" subtitle={`${recipes.length} saved`} action={add} />
+      {!needNames && recipes.some((r) => r.sourceType === "photo" || r.sourceType === "text") ? (
+        <Link href="/recipes/names" className="-mt-2 mb-3 flex items-center gap-1.5 self-start text-sm font-medium text-brand">
+          <Icon name="edit" className="size-4" /> Rename recipes from photos
+        </Link>
+      ) : null}
       {needNames ? (
         <Link href="/recipes/names" className="mb-4 flex items-center gap-3 rounded-2xl border border-warn/30 bg-warn-soft p-3 text-sm">
           <Icon name="edit" className="size-5 shrink-0 text-warn" />
           <span className="flex-1">
             <strong>{needNames} recipe{needNames === 1 ? "" : "s"}</strong> came in from photos without a proper name.
           </span>
-          <span className="font-medium text-brand">Name them</span>
+          <span className="font-medium text-brand">Rename</span>
         </Link>
       ) : null}
       {recipes.length ? (

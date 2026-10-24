@@ -8,7 +8,9 @@ import { recipeImageSrc } from "@/lib/images";
 import { inferMealTypes } from "@/lib/moods";
 import { addDays, shortDate } from "@/lib/dates";
 import { formatMinutes, recipeTime } from "@/lib/time";
+import { ReadWithClaudeButton } from "@/components/ReadWithClaude";
 import { RequestMealButton } from "@/components/RequestMeal";
+import { aiAvailable } from "@/lib/import/ai";
 import { requireViewer } from "@/server/auth";
 import { currentWeekStart } from "@/server/data";
 import { RecipeActions } from "./RecipeActions";
@@ -85,6 +87,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
       >
         <Icon name="clock" /> Start cooking
       </Link>
+      {aiAvailable() && r.readWith !== "claude" && (pages.length || r.imageUrl?.startsWith("data:")) ? <ReadWithClaudeButton id={r.id} /> : null}
       <RequestMealButton
         recipes={[]}
         recipe={{ id: r.id, title: r.title, imageUrl: img }}

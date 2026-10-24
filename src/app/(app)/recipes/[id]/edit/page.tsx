@@ -1,4 +1,5 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
+import { recipeImageSrc } from "@/lib/images";
 import { notFound } from "next/navigation";
 import { getDb, schema } from "@/db";
 import { PageHeader } from "@/components/PageHeader";
@@ -15,11 +16,19 @@ export default async function EditRecipePage({ params }: { params: Promise<{ id:
     .where(and(eq(schema.recipes.id, id), eq(schema.recipes.householdId, viewer.household.id)))
     .limit(1);
   if (!r) notFound();
+  const pages = await db
+    .select({ id: schema.recipePhotos.id })
+    .from(schema.recipePhotos)
+    .where(eq(schema.recipePhotos.recipeId, r.id))
+    .orderBy(asc(schema.recipePhotos.position));
+  const thumb = recipeImageSrc(r);
+  const photoUrls = pages.length ? pages.map((p) => `/api/recipe-photo/${p.id}`) : r.sourceType === "photo" && thumb ? [thumb] : [];
   return (
     <>
       <PageHeader title="Edit recipe" />
       <RecipeEditor
         id={r.id}
+        photoUrls={photoUrls}
         initial={{
           title: r.title,
           description: r.description,

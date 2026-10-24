@@ -7,7 +7,7 @@ import { Icon } from "@/components/icons";
 import { RecipeEditor, type EditorValue } from "@/components/RecipeEditor";
 import { Button, Card, cx, ErrorText, inputClass } from "@/components/ui";
 import { looksLikeBadTitle } from "@/lib/import/title";
-import { buildGroups, defaultBreaks, readPageText, type PageGroup, type PagePart, type RecipePart } from "@/lib/import/pages";
+import { buildGroups, defaultBreaks, readPageText, textQuality, unreadablePart, type PageGroup, type PagePart, type RecipePart } from "@/lib/import/pages";
 import type { ImportedRecipe } from "@/lib/import/types";
 import { readPhotoText } from "@/lib/ocr/reader";
 
@@ -27,6 +27,16 @@ type Reader = "device" | "claude";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+/** sha256 of the photo file, so the same photo is never read twice. */
+async function fingerprint(file: Blob): Promise<string | undefined> {
+  try {
+    const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return undefined;
+  }
+}
+
 async function downscale(file: Blob, max: number, quality: number): Promise<string> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
@@ -38,13 +48,14 @@ async function downscale(file: Blob, max: number, quality: number): Promise<stri
   return canvas.toDataURL("image/jpeg", quality);
 }
 
-function toEditor(r: ImportedRecipe, imageUrl: string | null): EditorValue {
+function toEditor(r: ImportedRecipe, imageUrl: string | null, readWith: "phone" | "claude" = "phone"): EditorValue {
   return {
     title: r.title,
     description: r.description,
     sourceUrl: null,
     pinterestUrl: null,
     sourceType: "photo",
+    readWith,
     imageUrl,
     servings: r.servings,
     prepMinutes: r.prepMinutes,
@@ -73,6 +84,8 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
   const [savingAll, setSavingAll] = useState(false);
   // Names typed on the review screen, by group.
   const [titles, setTitles] = useState<Record<number, string>>({});
+  // Which reader read the photos that are being reviewed.
+  const [readBy, setReadBy] = useState<"phone" | "claude">("phone");
 
   const update = (id: string, patch: Partial<Photo>) => setPhotos((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
 
@@ -110,16 +123,19 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
   const readOne = async (p: Photo, how: Reader): Promise<RecipePart[]> => {
     if (how === "claude") {
       const full = await downscale(p.file, 1600, 0.85);
-      const res = await readPhotoPage(full.split(",")[1], "image/jpeg");
+      const res = await readPhotoPage(full.split(",")[1], "image/jpeg", await fingerprint(p.file));
       if (!res.ok) throw new Error(res.error);
       return res.value;
     }
-    const text = await readPhotoText(p.file, (progress) => update(p.id, { progress }));
+    const { text, confidence } = await readPhotoText(p.file, (progress) => update(p.id, { progress }));
+    // Handwriting comes back as noise; keep those pages as photos rather than saving gibberish.
+    if (confidence < 60 || textQuality(text) < 0.6) return [unreadablePart()];
     return readPageText(text);
   };
 
   const readAll = async () => {
     setStage("reading");
+    setReadBy(reader === "claude" ? "claude" : "phone");
     setError(undefined);
     const queue = photos.filter((p) => p.status !== "done");
     // The phone reads one photo at a time; Claude can take a few at once.
@@ -165,7 +181,7 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
       if (saved[g]) continue;
       const group = groups[g];
       const res = await saveRecipe(
-        { ...toEditor({ ...group.recipe, title: titles[g]?.trim() || group.recipe.title }, photos[group.pages[0]]?.thumb ?? null), mealTypes: [] },
+        { ...toEditor({ ...group.recipe, title: titles[g]?.trim() || group.recipe.title || "Untitled recipe" }, photos[group.pages[0]]?.thumb ?? null, readBy), mealTypes: [] },
         undefined,
         group.pages.map((pg) => photos[pg].page),
       );
@@ -189,7 +205,7 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
           ))}
         </div>
         <RecipeEditor
-          initial={toEditor({ ...group.recipe, title: titles[editing]?.trim() || group.recipe.title }, photos[group.pages[0]]?.thumb ?? null)}
+          initial={toEditor({ ...group.recipe, title: titles[editing]?.trim() || group.recipe.title }, photos[group.pages[0]]?.thumb ?? null, readBy)}
           photos={group.pages.map((pg) => photos[pg].page)}
           notice="Read from your photos. Check the amounts before saving."
           onSaved={(id) => {
@@ -268,13 +284,20 @@ export function PhotoImport({ aiEnabled, onUseText }: { aiEnabled: boolean; onUs
                         onChange={(e) => setTitles((t) => ({ ...t, [g]: e.target.value }))}
                         onFocus={(e) => looksLikeBadTitle(e.target.value) && e.target.select()}
                         aria-label="Recipe name"
+                        placeholder="Name of the dish"
                         className={cx(inputClass, "h-9 font-medium", looksLikeBadTitle(titles[g] ?? group.recipe.title) && "border-warn")}
                       />
                     )}
                     <p className="text-xs text-muted">
-                      {group.pages.length > 1 ? `Photos ${group.pages.map((p) => p + 1).join(" + ")}` : `Photo ${group.pages[0] + 1}`} · {plural(group.recipe.ingredients.length, "ingredient")} · {plural(group.recipe.steps.length, "step")}
+                      {group.pages.length > 1 ? `Photos ${group.pages.map((p) => p + 1).join(" + ")}` : `Photo ${group.pages[0] + 1}`} · {group.unreadable ? "photo only" : `${plural(group.recipe.ingredients.length, "ingredient")} · ${plural(group.recipe.steps.length, "step")}`}
                     </p>
-                    {!group.recipe.ingredients.length ? <p className="text-xs text-warn">No ingredients found; add them when you review.</p> : null}
+                    {group.unreadable ? (
+                      <p className="text-xs text-warn">
+                        Looks handwritten, so it wasn&apos;t read. It&apos;s saved as a photo recipe: type the name now, and the ingredients later while looking at the photo.
+                      </p>
+                    ) : !group.recipe.ingredients.length ? (
+                      <p className="text-xs text-warn">No ingredients found; add them when you review.</p>
+                    ) : null}
                     {saved[g] ? (
                       <Link href={`/recipes/${saved[g]}`} className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-brand">
                         <Icon name="check" className="size-4" /> Saved

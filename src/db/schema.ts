@@ -77,6 +77,10 @@ export const recipes = pgTable(
     tags: jsonb("tags").$type<string[]>().notNull().default([]),
     mealTypes: jsonb("meal_types").$type<string[]>().notNull().default(["dinner"]),
     notes: text("notes"),
+    /** someone typed or confirmed the name, so readers never replace it */
+    titleByHand: boolean("title_by_hand").notNull().default(false),
+    /** who read the recipe from its photos: Claude reads each recipe once, ever */
+    readWith: text("read_with").$type<"phone" | "claude">(),
     /** household rating, 1-5 stars; null = not rated yet */
     rating: integer("rating"),
     isFavorite: boolean("is_favorite").notNull().default(false),
@@ -187,6 +191,23 @@ export const recipePhotos = pgTable(
     data: text("data").notNull(),
   },
   (t) => [index("recipe_photos_recipe_idx").on(t.recipeId)],
+);
+
+/**
+ * What Claude read from each photo, by the photo's fingerprint (sha256), so the same picture is
+ * never paid for twice.
+ */
+export const photoReads = pgTable(
+  "photo_reads",
+  {
+    householdId: text("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    hash: text("hash").notNull(),
+    parts: jsonb("parts").$type<unknown[]>().notNull(),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex("photo_reads_idx").on(t.householdId, t.hash)],
 );
 
 /** "Can we have …?" A household member asks for a recipe, or describes an idea. */

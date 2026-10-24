@@ -22,6 +22,8 @@ export interface RecipePart {
   ingredients: string[];
   steps: string[];
   tags: string[];
+  /** the reader couldn't make sense of this page (usually handwriting): keep it as a photo */
+  unreadable?: boolean;
 }
 
 export interface PagePart extends RecipePart {
@@ -115,11 +117,42 @@ export function readPageText(text: string): RecipePart[] {
   });
 }
 
+/** Share of the words on a page that look like real words; reader noise scores low. */
+export function textQuality(text: string): number {
+  const tokens = text.split(/\s+/).filter((t) => /[A-Za-z0-9½⅓⅔¼¾⅛]/.test(t));
+  if (tokens.length < 5) return 0;
+  const good = tokens.filter((t) => {
+    const w = t.replace(/^[^A-Za-z0-9½⅓⅔¼¾⅛]+|[^A-Za-z0-9½⅓⅔¼¾⅛]+$/g, "");
+    if (/^[\d½⅓⅔¼¾⅛/.-]+$/.test(w)) return true;
+    return /^[A-Za-z][a-z'’-]*$|^[A-Z]+$/.test(w) && (w.length >= 3 || /^(?:a|an|of|to|in|on|or|lb|oz|c|t|tsp|tbsp|is|it|at|be|by|as)$/i.test(w)) && /[aeiouy]/i.test(w);
+  });
+  return good.length / tokens.length;
+}
+
+/** A page the reader couldn't make sense of, kept as a photo-only recipe page. */
+export function unreadablePart(): RecipePart {
+  return {
+    title: null,
+    continuesFromPrevious: false,
+    continuesOnNext: false,
+    description: null,
+    servings: null,
+    prepMinutes: null,
+    cookMinutes: null,
+    ingredients: [],
+    steps: [],
+    tags: [],
+    unreadable: true,
+  };
+}
+
 /** Where each recipe starts: true at index i means part i begins a new recipe. */
 export function defaultBreaks(parts: PagePart[]): boolean[] {
   return parts.map((part, i) => {
     if (i === 0) return true;
     const prev = parts[i - 1];
+    // Unreadable pages can't say whether they continue; the household joins them if needed.
+    if (part.unreadable || prev.unreadable) return true;
     if (part.continuesFromPrevious) return false;
     // No name found but a recipe of its own: only joins a page that said it carries on.
     if (!part.title) return !prev.continuesOnNext;
@@ -143,14 +176,17 @@ export interface PageGroup {
   /** photo numbers (0-based) the recipe was read from */
   pages: number[];
   recipe: ImportedRecipe;
+  /** some page couldn't be read: saved as a photo recipe to type up later */
+  unreadable: boolean;
 }
 
 export function buildGroups(parts: PagePart[], breaks: boolean[]): PageGroup[] {
   const groups: PageGroup[] = [];
   parts.forEach((part, i) => {
-    if (breaks[i] || !groups.length) groups.push({ parts: [], pages: [], recipe: emptyRecipe() });
+    if (breaks[i] || !groups.length) groups.push({ parts: [], pages: [], recipe: emptyRecipe(), unreadable: false });
     const g = groups[groups.length - 1];
     g.parts.push(i);
+    if (part.unreadable) g.unreadable = true;
     if (!g.pages.includes(part.page)) g.pages.push(part.page);
     const r = g.recipe;
     r.title ||= part.title ?? "";
@@ -163,7 +199,7 @@ export function buildGroups(parts: PagePart[], breaks: boolean[]): PageGroup[] {
     r.tags = [...new Set([...r.tags, ...part.tags])];
   });
   for (const g of groups) {
-    g.recipe.title = g.recipe.title ? tidyTitle(g.recipe.title) : (suggestTitle(g.recipe) ?? "Untitled recipe");
+    g.recipe.title = g.recipe.title ? tidyTitle(g.recipe.title) : g.unreadable ? "" : (suggestTitle(g.recipe) ?? "Untitled recipe");
     if (g.recipe.prepMinutes || g.recipe.cookMinutes) g.recipe.totalMinutes = (g.recipe.prepMinutes ?? 0) + (g.recipe.cookMinutes ?? 0);
   }
   return groups;

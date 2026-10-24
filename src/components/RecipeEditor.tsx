@@ -29,6 +29,8 @@ export interface EditorValue {
   notes: string | null;
   isFavorite: boolean;
   rating: number | null;
+  /** who read it from photos, so Claude never reads it twice */
+  readWith?: "phone" | "claude" | null;
   isStaple: boolean;
   stapleEveryWeeks: number | null;
 }
@@ -41,10 +43,13 @@ export function RecipeEditor({
   notice,
   onSaved,
   photos,
+  photoUrls,
 }: {
   initial: EditorValue;
   /** original page photos to keep with a new recipe */
   photos?: string[];
+  /** photos to show while typing (an existing recipe's pages) */
+  photoUrls?: string[];
   id?: string;
   notice?: string | null;
   /** when set, saving calls this instead of opening the recipe */
@@ -58,6 +63,8 @@ export function RecipeEditor({
   const [mealTypes, setMealTypes] = useState<string[]>(initial.mealTypes.length ? initial.mealTypes : inferMealTypes(initial));
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
+  const shownPhotos = photoUrls?.length ? photoUrls : (photos ?? []);
+  const [photoOpen, setPhotoOpen] = useState(true);
   const set = <K extends keyof EditorValue>(k: K, value: EditorValue[K]) => setV((s) => ({ ...s, [k]: value }));
 
   const preview = useMemo(
@@ -110,6 +117,23 @@ export function RecipeEditor({
 
   return (
     <div className="flex flex-col gap-5">
+      {shownPhotos.length ? (
+        // The original card stays in view while typing it up.
+        <div className="sticky top-0 z-20 -mx-4 border-b border-line bg-bg/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
+          <button type="button" onClick={() => setPhotoOpen((o) => !o)} className="flex w-full items-center justify-between text-sm font-medium" aria-expanded={photoOpen}>
+            <span>Original photo{shownPhotos.length > 1 ? `s (${shownPhotos.length})` : ""}</span>
+            <span className="text-brand">{photoOpen ? "Hide" : "Show"}</span>
+          </button>
+          {photoOpen ? (
+            <div className="mt-2 flex max-h-[42dvh] snap-x gap-2 overflow-auto">
+              {shownPhotos.map((src, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} src={src} alt={`Page ${i + 1}`} className="w-full max-w-md shrink-0 snap-start rounded-lg bg-white object-contain" />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {notice ? <p className="rounded-xl bg-warn-soft px-3 py-2 text-sm">{notice}</p> : null}
       <Card className="flex flex-col gap-4 p-4">
         <div className="flex gap-3">

@@ -1,0 +1,1 @@
+ALTER TABLE "recipes" ADD COLUMN "title_by_hand" boolean DEFAULT false NOT NULL;
