@@ -128,7 +128,7 @@ export function WeekPlan(props: {
           <Icon name="check" className="size-6 shrink-0 text-brand" />
           <div className="min-w-0 flex-1 text-sm">
             <p className="font-semibold">Plan approved{props.approvedBy ? ` by ${props.approvedBy}` : ""}</p>
-            <p className="text-muted">Your grocery list is ready. Changing a meal will ask you to approve again.</p>
+            <p className="text-muted">Your grocery list is ready, and it updates by itself when you change the meals.</p>
           </div>
           <Link href={`/list?week=${weekStart}`} className="inline-flex h-10 shrink-0 items-center rounded-full bg-brand px-4 text-sm font-medium text-brand-ink">
             Open list
@@ -141,7 +141,7 @@ export function WeekPlan(props: {
         </Card>
       ) : (
         <p className="text-sm text-muted">
-          Here&apos;s a plan{moods.length ? ` leaning ${moods.join(", ").toLowerCase()}` : ""}. Swap anything you don&apos;t love, then approve it to build your grocery list.
+          Here&apos;s a plan{moods.length ? ` leaning ${moods.join(", ").toLowerCase()}` : ""}. Swap anything you don&apos;t love, then approve it to make your grocery list. After that, the list keeps up with any changes.
         </p>
       )}
 

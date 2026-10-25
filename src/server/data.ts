@@ -181,7 +181,7 @@ export async function createWeek(opts: {
     .limit(1);
   if (plan) {
     await db.delete(schema.planMeals).where(eq(schema.planMeals.planId, plan.id));
-    [plan] = await db.update(schema.mealPlans).set({ request, status: "draft", approvedAt: null }).where(eq(schema.mealPlans.id, plan.id)).returning();
+    [plan] = await db.update(schema.mealPlans).set({ request }).where(eq(schema.mealPlans.id, plan.id)).returning();
   } else {
     [plan] = await db.insert(schema.mealPlans).values({ householdId, weekStart, request }).returning();
   }
@@ -206,6 +206,25 @@ export async function createWeek(opts: {
   return plan;
 }
 
+
+/**
+ * Once a week's grocery list has been made, it follows the plan: call this after any change to the
+ * meals and the list is rebuilt to match (checked-off and hand-added items stay).
+ */
+export async function refreshList(householdId: string, planId: string, userName: string): Promise<boolean> {
+  const db = await getDb();
+  const [plan] = await db
+    .select()
+    .from(schema.mealPlans)
+    .where(and(eq(schema.mealPlans.id, planId), eq(schema.mealPlans.householdId, householdId)))
+    .limit(1);
+  if (!plan?.approvedAt) return false;
+  await buildListForPlan(householdId, plan, userName);
+  const meals = await db.select({ recipeId: schema.planMeals.recipeId }).from(schema.planMeals).where(eq(schema.planMeals.planId, plan.id));
+  await markRequestsPlanned(householdId, plan.id, plan.weekStart, meals.map((m) => m.recipeId).filter((x): x is string => Boolean(x)));
+  if (plan.status !== "approved") await db.update(schema.mealPlans).set({ status: "approved" }).where(eq(schema.mealPlans.id, plan.id));
+  return true;
+}
 
 /**
  * Build or refresh the grocery list for an approved plan. Items the household already marked

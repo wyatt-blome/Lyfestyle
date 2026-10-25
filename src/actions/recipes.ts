@@ -14,7 +14,7 @@ import type { ImportedRecipe } from "@/lib/import/types";
 import { tidyTitle } from "@/lib/ingredients/names";
 import { inferMealTypes } from "@/lib/moods";
 import { requireViewer } from "@/server/auth";
-import { currentWeekStart } from "@/server/data";
+import { currentWeekStart, refreshList } from "@/server/data";
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string; board?: string };
 
@@ -586,7 +586,6 @@ export async function addToWeek(recipeId: string, mealType: "breakfast" | "lunch
     .where(and(eq(schema.mealPlans.householdId, viewer.household.id), eq(schema.mealPlans.weekStart, weekStart)))
     .limit(1);
   if (!plan) [plan] = await db.insert(schema.mealPlans).values({ householdId: viewer.household.id, weekStart }).returning();
-  else if (plan.status === "approved") await db.update(schema.mealPlans).set({ status: "draft" }).where(eq(schema.mealPlans.id, plan.id));
   const existing = await db.select().from(schema.planMeals).where(eq(schema.planMeals.planId, plan.id));
   await db.insert(schema.planMeals).values({
     planId: plan.id,
@@ -595,6 +594,7 @@ export async function addToWeek(recipeId: string, mealType: "breakfast" | "lunch
     recipeId,
     servings: plan.request?.people ?? viewer.household.settings.people,
   });
+  if (await refreshList(viewer.household.id, plan.id, viewer.user.name)) revalidatePath("/list");
   revalidatePath("/week");
   return { ok: true, value: { weekStart } };
 }

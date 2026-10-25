@@ -4,14 +4,14 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, schema } from "@/db";
-import type { MealPlan, PlanUndo } from "@/db/schema";
+import type { PlanUndo } from "@/db/schema";
 import { isIsoDate, todayIn } from "@/lib/dates";
 import { recipeImageSrc } from "@/lib/images";
 import { recipeTime } from "@/lib/time";
 import type { MealType } from "@/lib/moods";
 import { rankForSlot } from "@/lib/planner";
 import { requireViewer } from "@/server/auth";
-import { buildListForPlan, createWeek, markRequestsPlanned, householdRecipes, mealForHousehold, pantryOverrides, planById, plannedRecipes, toCandidate } from "@/server/data";
+import { buildListForPlan, createWeek, refreshList, markRequestsPlanned, householdRecipes, mealForHousehold, pantryOverrides, planById, plannedRecipes, toCandidate } from "@/server/data";
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -59,6 +59,7 @@ export async function planWeek(weekStart: string, request: z.input<typeof Reques
     today: todayIn(viewer.household.settings.timeZone),
     keep: keepMeals ? before.meals : [],
   });
+  if (before.plan) await changed(viewer.household.id, before.plan.id, viewer.user.name);
   revalidatePath("/week");
   return { ok: true, value: null };
 }
@@ -98,7 +99,7 @@ export async function newSuggestions(weekStart: string): Promise<Result<null>> {
     keep: meals.filter((m) => askedIds.has(m.recipeId)),
     avoid: meals.filter((m) => !askedIds.has(m.recipeId)).map((m) => m.recipeId),
   });
-  revalidatePath("/week");
+  await changed(viewer.household.id, plan.id, viewer.user.name);
   return { ok: true, value: null };
 }
 
@@ -149,7 +150,7 @@ export async function undoPlanChange(planId: string): Promise<Result<{ label: st
     .update(schema.mealPlans)
     .set({ request: undo.request, status: undo.status, approvedAt: undo.approvedAt ? new Date(undo.approvedAt) : null, undo: null })
     .where(eq(schema.mealPlans.id, plan.id));
-  revalidatePath("/week");
+  await changed(viewer.household.id, plan.id, viewer.user.name);
   return { ok: true, value: { label: undo.label } };
 }
 
@@ -162,10 +163,10 @@ export async function dismissUndo(planId: string): Promise<Result<null>> {
   return { ok: true, value: null };
 }
 
-async function markChanged(plan: MealPlan) {
-  if (plan.status !== "approved") return;
-  const db = await getDb();
-  await db.update(schema.mealPlans).set({ status: "draft" }).where(eq(schema.mealPlans.id, plan.id));
+/** After a change to a plan's meals: its grocery list (if made) follows along. */
+async function changed(householdId: string, planId: string, userName: string) {
+  if (await refreshList(householdId, planId, userName)) revalidatePath("/list");
+  revalidatePath("/week");
 }
 
 export interface SwapOption {
@@ -239,8 +240,7 @@ export async function swapMeal(mealId: string, recipeId: string): Promise<Result
   if (!recipe) return { ok: false, error: "Recipe not found." };
   await saveUndo(found.plan.id, `Swapped in ${recipe.title}`);
   await db.update(schema.planMeals).set({ recipeId, leftoverOfId: null, note: null }).where(eq(schema.planMeals.id, mealId));
-  await markChanged(found.plan);
-  revalidatePath("/week");
+  await changed(viewer.household.id, found.plan.id, viewer.user.name);
   return { ok: true, value: null };
 }
 
@@ -268,8 +268,7 @@ export async function updateMeal(mealId: string, patch: { day?: number | null; s
   );
   const db = await getDb();
   await db.update(schema.planMeals).set(set).where(eq(schema.planMeals.id, mealId));
-  await markChanged(found.plan);
-  revalidatePath("/week");
+  await changed(viewer.household.id, found.plan.id, viewer.user.name);
   return { ok: true, value: null };
 }
 
@@ -286,8 +285,7 @@ export async function removeMeal(mealId: string): Promise<Result<null>> {
     : [];
   await saveUndo(found.plan.id, gone ? `Removed ${gone.title}` : `Removed a ${found.meal.mealType}`);
   await db.delete(schema.planMeals).where(inArray(schema.planMeals.id, ids));
-  await markChanged(found.plan);
-  revalidatePath("/week");
+  await changed(viewer.household.id, found.plan.id, viewer.user.name);
   return { ok: true, value: null };
 }
 
@@ -316,8 +314,7 @@ export async function addMeal(planId: string, mealType: MealType): Promise<Resul
   const position = meals.filter((m) => m.mealType === mealType).reduce((mx, m) => Math.max(mx, m.position), base - 1) + 1;
   await saveUndo(plan.id, `Added ${best ? best.recipe.title : `a ${mealType}`}`);
   await db.insert(schema.planMeals).values({ planId: plan.id, mealType, position, recipeId: best?.recipe.id ?? null, servings: people });
-  await markChanged(plan);
-  revalidatePath("/week");
+  await changed(viewer.household.id, plan.id, viewer.user.name);
   return { ok: true, value: null };
 }
 
