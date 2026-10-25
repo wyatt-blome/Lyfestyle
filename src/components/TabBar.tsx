@@ -6,7 +6,7 @@ import { Icon, type IconName } from "./icons";
 import { cx } from "./ui";
 
 const TABS: { href: string; label: string; icon: IconName }[] = [
-  { href: "/week", label: "This week", icon: "calendar" },
+  { href: "/week", label: "Week", icon: "calendar" },
   { href: "/recipes", label: "Recipes", icon: "book" },
   { href: "/list", label: "List", icon: "cart" },
   { href: "/household", label: "Household", icon: "users" },

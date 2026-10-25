@@ -109,6 +109,10 @@ export async function createWeek(opts: {
   request: WeekRequestJson;
   store: "walmart" | "sams";
   today: string;
+  /** meals to keep on the plan, placed first (when only the counts change) */
+  keep?: { mealType: MealType; recipeId: string }[];
+  /** recipes to pass over for fresh suggestions */
+  avoid?: string[];
 }) {
   const { householdId, weekStart, request, store } = opts;
   const db = await getDb();
@@ -140,6 +144,12 @@ export async function createWeek(opts: {
   // Dinners with leftover lunches are cooked bigger; rank them with that in mind.
   for (const d of drafts) if (d.leftoverOf !== null) slots[d.leftoverOf].servings! += request.people;
 
+  for (const k of opts.keep ?? []) {
+    if (slots.some((s) => s.recipeId === k.recipeId)) continue;
+    const slot = slots.find((s) => !s.recipeId && !s.locked && s.mealType === k.mealType);
+    if (slot) slot.recipeId = k.recipeId;
+  }
+
   // Requested meals go on the plan first; ideas in words steer the recommendations.
   const requests = await openRequests(householdId, weekStart);
   const placed: string[] = [];
@@ -161,6 +171,7 @@ export async function createWeek(opts: {
     request: { moods: request.moods, note: [request.note, ...ideas].filter(Boolean).join(", ") },
     includeDueStaples: request.includeStaples,
     today: new Date(`${opts.today}T12:00:00Z`),
+    avoidIds: new Set(opts.avoid ?? []),
   });
 
   let [plan] = await db

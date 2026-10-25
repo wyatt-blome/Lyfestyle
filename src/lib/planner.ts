@@ -199,8 +199,10 @@ export function autoFill(opts: {
   pantryKeys?: Set<string>;
   today?: Date;
   random?: () => number;
+  /** recipes to pass over when others fit (for "new suggestions"); used only if nothing else does */
+  avoidIds?: Set<string>;
 }): Map<number, string> {
-  const { slots, recipes, store, pantryKeys, request, includeDueStaples = true, today = new Date(), random = Math.random } = opts;
+  const { slots, recipes, store, pantryKeys, request, includeDueStaples = true, today = new Date(), random = Math.random, avoidIds } = opts;
   const byId = new Map(recipes.map((r) => [r.id, r]));
   const filled = new Map<number, string>();
   const used = new Set(slots.map((s) => s.recipeId).filter((id): id is string => Boolean(id)));
@@ -226,17 +228,10 @@ export function autoFill(opts: {
 
   for (const slot of empty) {
     if (filled.has(slot.index)) continue;
-    const ranked = rankForSlot({
-      others: current(),
-      candidates: recipes,
-      servings: slot.servings,
-      mealType: slot.mealType,
-      request,
-      store,
-      pantryKeys,
-      today,
-      excludeIds: used,
-    });
+    const rank = (excludeIds: Set<string>) =>
+      rankForSlot({ others: current(), candidates: recipes, servings: slot.servings, mealType: slot.mealType, request, store, pantryKeys, today, excludeIds });
+    let ranked = avoidIds?.size ? rank(new Set([...used, ...avoidIds])) : [];
+    if (!ranked.length) ranked = rank(used);
     if (!ranked.length) break;
     const top = ranked[0].score;
     const near = ranked.filter((s) => s.score >= top - 0.75).slice(0, 4);

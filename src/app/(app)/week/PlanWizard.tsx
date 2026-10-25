@@ -21,11 +21,14 @@ export interface WizardDefaults {
 
 export function PlanWizard({
   weekStart,
+  weekWords,
   defaults,
   recipeCount,
   replanning,
 }: {
   weekStart: string;
+  /** "this week", "next week", "the week of Nov 2" */
+  weekWords: string;
   defaults: WizardDefaults;
   recipeCount: number;
   replanning: boolean;
@@ -34,6 +37,8 @@ export function PlanWizard({
   const [step, setStep] = useState<1 | 2>(1);
   const [v, setV] = useState(defaults);
   const [error, setError] = useState<string>();
+  // When changing an existing plan: keep its meals and only add or drop to match the new counts.
+  const [keepMeals, setKeepMeals] = useState(true);
   const [pending, start] = useTransition();
   const set = <K extends keyof WizardDefaults>(k: K, value: WizardDefaults[K]) => setV((s) => ({ ...s, [k]: value }));
   const total = v.breakfasts + v.lunches + v.dinners;
@@ -54,7 +59,7 @@ export function PlanWizard({
   const submit = () =>
     start(async () => {
       setError(undefined);
-      const res = await planWeek(weekStart, { ...v, leftoverLunches: Math.min(v.leftoverLunches, maxLeftovers) });
+      const res = await planWeek(weekStart, { ...v, leftoverLunches: Math.min(v.leftoverLunches, maxLeftovers) }, replanning && keepMeals);
       if (!res.ok) setError(res.error);
       else router.replace(`/week?start=${weekStart}`);
     });
@@ -72,7 +77,7 @@ export function PlanWizard({
 
       {step === 1 ? (
         <Card className="p-5">
-          <h2 className="font-display text-2xl font-semibold">How many meals are you cooking this week?</h2>
+          <h2 className="font-display text-2xl font-semibold">How many meals are you cooking {weekWords}?</h2>
           <p className="mt-1 text-sm text-muted">Count only the meals you&apos;ll make at home.</p>
           <div className="mt-5 divide-y divide-line">
             {(
@@ -104,7 +109,23 @@ export function PlanWizard({
               </div>
             ) : null}
           </div>
-          <div className="mt-5 flex justify-end">
+          {replanning ? (
+            <label className="mt-4 flex items-start gap-3 rounded-xl bg-surface-2 p-3">
+              <input type="checkbox" checked={keepMeals} onChange={(e) => setKeepMeals(e.target.checked)} className="mt-1 size-5 accent-[var(--brand)]" />
+              <span>
+                <span className="block text-sm font-medium">Keep the meals already planned</span>
+                <span className="text-xs text-muted">Only add or drop meals to match the new numbers. Untick to pick every meal fresh.</span>
+              </span>
+            </label>
+          ) : null}
+          <div className="mt-5 flex items-center justify-between gap-3">
+            {replanning ? (
+              <Link href={`/week?start=${weekStart}`} className="text-sm font-medium text-muted">
+                Cancel
+              </Link>
+            ) : (
+              <span />
+            )}
             <Button variant="primary" size="lg" disabled={total === 0} onClick={() => setStep(2)}>
               Next <Icon name="chevronRight" />
             </Button>
@@ -149,10 +170,14 @@ export function PlanWizard({
               <Icon name="chevronLeft" /> Back
             </Button>
             <Button variant="primary" size="lg" busy={pending} onClick={submit}>
-              <Icon name="sparkle" /> {replanning ? "Re-plan my week" : "Recommend meals"}
+              <Icon name="sparkle" /> {replanning ? "Update my plan" : "Recommend meals"}
             </Button>
           </div>
-          {replanning ? <p className="mt-3 text-right text-xs text-muted">This replaces the meals currently planned for this week.</p> : null}
+          {replanning ? (
+            <p className="mt-3 text-right text-xs text-muted">
+              {keepMeals ? "Meals already planned stay; only the new ones are picked." : `This replaces every meal planned for ${weekWords}.`}
+            </p>
+          ) : null}
         </Card>
       )}
     </div>

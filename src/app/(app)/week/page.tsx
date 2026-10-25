@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { PageHeader } from "@/components/PageHeader";
-import { addDays, formatWeek, isIsoDate, weekStartFor } from "@/lib/dates";
+import { addDays, formatWeek, isIsoDate, shortDate, weekStartFor } from "@/lib/dates";
 import { buildGroceryList } from "@/lib/ingredients/grocery";
 import { recipeImageSrc } from "@/lib/images";
 import { inferMealTypes } from "@/lib/moods";
@@ -20,7 +20,12 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
   const thisWeek = currentWeekStart(settings);
   const weekStart = isIsoDate(params.start) ? weekStartFor(params.start, settings.weekStartsOn) : thisWeek;
 
-  const [found, recipes] = await Promise.all([getPlan(viewer.household.id, weekStart), householdRecipes(viewer.household.id)]);
+  const nextWeek = addDays(thisWeek, 7);
+  const [found, recipes, nextPlan] = await Promise.all([
+    getPlan(viewer.household.id, weekStart),
+    householdRecipes(viewer.household.id),
+    weekStart === thisWeek ? getPlan(viewer.household.id, nextWeek) : null,
+  ]);
   const byId = new Map(recipes.map((r) => [r.id, r]));
   const lite: RecipeLite[] = recipes.map((r) => ({
     id: r.id,
@@ -34,19 +39,46 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
     isStaple: r.isStaple,
   }));
 
-  const label = weekStart === thisWeek ? "This week" : weekStart === addDays(thisWeek, 7) ? "Next week" : weekStart < thisWeek ? "Past week" : "Upcoming week";
+  const label = weekStart === thisWeek ? "This week" : weekStart === nextWeek ? "Next week" : weekStart < thisWeek ? "Past week" : "Upcoming week";
+  // How the questions refer to the week: "this week", "next week", "the week of Nov 2".
+  const weekWords = weekStart === thisWeek ? "this week" : weekStart === nextWeek ? "next week" : `the week of ${shortDate(weekStart)}`;
   const nav = (
     <div className="flex items-center gap-1">
-      <Link href={`/week?start=${addDays(weekStart, -7)}`} aria-label="Previous week" className="grid size-10 place-items-center rounded-full border border-line bg-surface">
+      <Link href={`/week?start=${addDays(weekStart, -7)}`} aria-label="Earlier week" className="grid size-10 place-items-center rounded-full border border-line bg-surface">
         <Icon name="chevronLeft" />
       </Link>
-      <Link href={`/week?start=${addDays(weekStart, 7)}`} aria-label="Next week" className="grid size-10 place-items-center rounded-full border border-line bg-surface">
+      <Link href={`/week?start=${addDays(weekStart, 7)}`} aria-label="Later week" className="grid size-10 place-items-center rounded-full border border-line bg-surface">
         <Icon name="chevronRight" />
       </Link>
     </div>
   );
 
-  const header = <PageHeader title={label} subtitle={formatWeek(weekStart)} action={nav} />;
+  const switcher = (
+    <nav aria-label="Week" className="mb-5 grid grid-cols-2 gap-1 rounded-full border border-line bg-surface-2 p-1">
+      {(
+        [
+          [thisWeek, "This week"],
+          [nextWeek, "Next week"],
+        ] as const
+      ).map(([start, text]) => (
+        <Link
+          key={start}
+          href={`/week?start=${start}`}
+          aria-current={start === weekStart ? "page" : undefined}
+          className={`flex h-11 flex-col items-center justify-center rounded-full text-sm font-medium leading-tight ${start === weekStart ? "bg-brand text-brand-ink" : "text-muted"}`}
+        >
+          {text}
+          <span className="text-[11px] font-normal opacity-80">{formatWeek(start)}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+  const header = (
+    <>
+      <PageHeader title={label} subtitle={formatWeek(weekStart)} action={nav} />
+      {switcher}
+    </>
+  );
 
   // Meal requests from the household, shown above the plan.
   const pending = await openRequests(viewer.household.id, weekStart);
@@ -79,6 +111,7 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
         {requestBar(true)}
         <PlanWizard
           weekStart={weekStart}
+          weekWords={weekWords}
           recipeCount={recipes.length}
           replanning={Boolean(found?.meals.length)}
           defaults={{
@@ -129,6 +162,9 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
         status={plan.status}
         approvedBy={plan.approvedBy}
         hasList={Boolean(plan.approvedAt)}
+        weekWords={weekWords}
+        undo={plan.undo?.label ?? null}
+        planNext={weekStart === thisWeek && !nextPlan?.meals.length ? nextWeek : null}
         meals={mealViews}
         recipes={lite}
         leftovers={leftovers}

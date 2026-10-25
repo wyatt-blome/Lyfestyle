@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { addMeal, approvePlan, removeMeal, swapMeal, swapOptions, updateMeal, type SwapOption } from "@/actions/plan";
+import { addMeal, approvePlan, dismissUndo, newSuggestions, removeMeal, undoPlanChange, swapMeal, swapOptions, updateMeal, type SwapOption } from "@/actions/plan";
 import { Icon } from "@/components/icons";
 import { StarsShown } from "@/components/Stars";
 import { Button, Card, cx, ErrorText, inputClass, Sheet, Stepper } from "@/components/ui";
@@ -62,6 +62,12 @@ export function WeekPlan(props: {
   leftovers: { name: string; text: string }[];
   store: "walmart" | "sams";
   request: WeekRequestJson | null;
+  /** "this week", "next week", … */
+  weekWords: string;
+  /** next week's start, when it still needs planning */
+  planNext: string | null;
+  /** the last change, which can be undone: "Swapped in Taco Soup" */
+  undo: string | null;
 }) {
   const { planId, weekStart, status, meals } = props;
   const router = useRouter();
@@ -87,9 +93,36 @@ export function WeekPlan(props: {
 
   const dinners = meals.filter((m) => m.mealType === "dinner" && m.recipe);
   const moods = props.request?.moods.map((id) => MOODS_BY_ID.get(id)?.label).filter(Boolean) ?? [];
+  const counted = (type: MealType, one: string) => {
+    const n = meals.filter((m) => m.mealType === type).length;
+    return n ? `${n} ${one}${n === 1 ? "" : "s"}` : "";
+  };
+  const summary = [counted("dinner", "dinner"), counted("lunch", "lunch"), counted("breakfast", "breakfast"), props.request ? `for ${props.request.people}` : ""]
+    .filter(Boolean)
+    .join(" · ");
+  const wants = [...moods, props.request?.note ? `“${props.request.note}”` : ""].filter(Boolean).join(", ");
 
   return (
     <div className="flex flex-col gap-5">
+      <Card className="flex flex-col gap-3 p-4">
+        <div className="text-sm">
+          <p className="font-semibold">{summary || "No meals yet"}</p>
+          <p className="text-muted">{wants ? `In the mood for ${wants.toLowerCase()}` : "A mix of everything"}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Link
+            href={`/week?start=${weekStart}&replan=1`}
+            className="flex h-11 items-center justify-center gap-1.5 rounded-full border border-line bg-surface px-3 text-sm font-medium"
+          >
+            <Icon name="edit" className="size-4" /> Meals &amp; mood
+          </Link>
+          <Button variant="secondary" busy={pending} onClick={() => run(() => newSuggestions(weekStart))} disabled={!meals.length}>
+            <Icon name="sparkle" className="size-4" /> New suggestions
+          </Button>
+        </div>
+        <p className="text-xs text-muted">New suggestions keeps your answers and picks different meals. To change one meal, tap Swap on it.</p>
+      </Card>
+
       {status === "approved" ? (
         <Card className="flex items-center gap-3 border-brand/30 bg-brand-soft p-4">
           <Icon name="check" className="size-6 shrink-0 text-brand" />
@@ -183,12 +216,30 @@ export function WeekPlan(props: {
         );
       })}
 
-      <Link href={`/week?start=${weekStart}&replan=1`} className="self-center text-sm text-muted underline underline-offset-4">
-        Start over with new answers
-      </Link>
+      {props.planNext ? (
+        <Link href={`/week?start=${props.planNext}`} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4">
+          <Icon name="calendar" className="size-6 shrink-0 text-brand" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">Plan next week</span>
+            <span className="text-sm text-muted">Pick next week&apos;s meals whenever you&apos;re ready.</span>
+          </span>
+          <Icon name="chevronRight" className="text-muted" />
+        </Link>
+      ) : null}
 
       <div className="safe-bottom fixed inset-x-0 bottom-16 z-20 border-t border-line bg-bg/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto flex max-w-3xl flex-col gap-2">
+          {props.undo ? (
+            <div role="status" className="flex items-center gap-2 rounded-2xl bg-ink px-4 py-2 text-sm text-bg">
+              <span className="min-w-0 flex-1 truncate">{props.undo}</span>
+              <button type="button" disabled={pending} onClick={() => run(() => undoPlanChange(planId))} className="h-9 shrink-0 rounded-full px-3 font-semibold underline underline-offset-2">
+                Undo
+              </button>
+              <button type="button" aria-label="Hide" disabled={pending} onClick={() => run(() => dismissUndo(planId))} className="grid size-9 shrink-0 place-items-center rounded-full opacity-70">
+                <Icon name="x" className="size-4" />
+              </button>
+            </div>
+          ) : null}
           <ErrorText>{error}</ErrorText>
           {status === "approved" ? (
             <Link href={`/list?week=${weekStart}`} className="flex h-12 items-center justify-center gap-2 rounded-full bg-brand font-medium text-brand-ink">

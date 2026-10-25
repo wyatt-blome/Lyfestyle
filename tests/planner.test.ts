@@ -79,6 +79,15 @@ describe("autoFill", () => {
     expect(picks.get(0)).toBe("staple");
     expect(new Set(picks.values()).size).toBe(3);
   });
+
+  it("passes over avoided recipes for new suggestions, unless nothing else fits", () => {
+    const meatloaf = r("loaf", "Meatloaf", ["2 lb ground beef", "1 egg"]);
+    const slots = (n: number) => Array.from({ length: n }, (_, index) => ({ index, mealType: "dinner" as const, recipeId: null, servings: 4, locked: false }));
+    const fresh = autoFill({ slots: slots(2), recipes: [tacos, spaghetti, salsaChicken, meatloaf], store: "walmart", avoidIds: new Set(["tacos", "spag"]), random: () => 0 });
+    expect([...fresh.values()].sort()).toEqual(["loaf", "salsa"]);
+    const short = autoFill({ slots: slots(3), recipes: [tacos, spaghetti, salsaChicken, meatloaf], store: "walmart", avoidIds: new Set(["tacos", "spag"]), random: () => 0 });
+    expect(new Set(short.values()).size).toBe(3);
+  });
 });
 
 describe("moods", () => {

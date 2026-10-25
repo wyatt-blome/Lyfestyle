@@ -106,6 +106,25 @@ export interface WeekRequestJson {
   includeStaples: boolean;
 }
 
+/** The plan as it was before its last change, so that change can be undone. */
+export interface PlanUndo {
+  /** what the change was: "Swapped in Taco Soup" */
+  label: string;
+  request: WeekRequestJson | null;
+  status: "draft" | "approved";
+  approvedAt: string | null;
+  meals: {
+    id: string;
+    mealType: "breakfast" | "lunch" | "dinner";
+    position: number;
+    day: number | null;
+    recipeId: string | null;
+    servings: number | null;
+    leftoverOfId: string | null;
+    note: string | null;
+  }[];
+}
+
 export const mealPlans = pgTable(
   "meal_plans",
   {
@@ -118,6 +137,7 @@ export const mealPlans = pgTable(
     request: jsonb("request").$type<WeekRequestJson>(),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     approvedBy: text("approved_by"),
+    undo: jsonb("undo").$type<PlanUndo>(),
     createdAt: created(),
   },
   (t) => [uniqueIndex("meal_plans_week_idx").on(t.householdId, t.weekStart)],
